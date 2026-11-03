@@ -1,0 +1,41 @@
+name: Bug report
+description: Report something that is not working.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove private code, secrets, and personal information before posting. Include only the details needed to reproduce the problem.
+  - type: input
+    id: version
+    attributes:
+      label: Rig version
+      placeholder: "Version number"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and coding agent
+      placeholder: "For example, macOS with Claude Code"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: A small example helps us investigate.
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Logs or screenshots
+      description: Optional. Review these for private information before sharing.
