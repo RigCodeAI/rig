@@ -1,0 +1,48 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook claude start",
+            "timeout": 180
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook claude prompt",
+            "timeout": 180
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook claude stop",
+            "timeout": 180
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook claude checkpoint",
+            "timeout": 180
+          }
+        ]
+      }
+    ]
+  }
+}

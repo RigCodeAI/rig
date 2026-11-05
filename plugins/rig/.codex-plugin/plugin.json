@@ -1,0 +1,23 @@
+{
+  "author": {
+    "name": "RigCodeAI"
+  },
+  "description": "Automatic repository checks and actionable scanner feedback for coding agents.",
+  "homepage": "https://github.com/RigCodeAI/rig",
+  "hooks": "./hooks/codex.json",
+  "interface": {
+    "category": "Productivity",
+    "composerIcon": "./assets/composer.svg",
+    "composerIconDark": "./assets/composerDark.svg",
+    "developerName": "RigCodeAI",
+    "displayName": "Rig",
+    "logo": "./assets/logo.svg",
+    "logoDark": "./assets/logoDark.svg",
+    "shortDescription": "Repository checks while your agent works"
+  },
+  "mcpServers": "./codex-mcp.json",
+  "name": "rig",
+  "repository": "https://github.com/RigCodeAI/rig",
+  "skills": "./skills/",
+  "version": "0.1.42028424211001"
+}

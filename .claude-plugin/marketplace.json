@@ -1,0 +1,13 @@
+{
+  "name": "rig",
+  "owner": {
+    "name": "RigCodeAI"
+  },
+  "plugins": [
+    {
+      "name": "rig",
+      "source": "./plugins/rig",
+      "description": "Automatic repository checks and actionable scanner feedback for coding agents."
+    }
+  ]
+}

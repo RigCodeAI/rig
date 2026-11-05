@@ -1,0 +1,14 @@
+{
+  "author": {
+    "name": "RigCodeAI"
+  },
+  "description": "Automatic repository checks and actionable scanner feedback for coding agents.",
+  "homepage": "https://github.com/RigCodeAI/rig",
+  "hooks": "./hooks/claude.json",
+  "icon": "./assets/logo.svg",
+  "mcpServers": "./.mcp.json",
+  "name": "rig",
+  "repository": "https://github.com/RigCodeAI/rig",
+  "skills": "./skills/",
+  "version": "0.1.42028424211001"
+}

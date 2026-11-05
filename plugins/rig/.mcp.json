@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "rig": {
+      "command": "sh",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/rig.sh",
+        "mcp"
+      ]
+    }
+  }
+}
