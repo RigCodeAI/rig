@@ -1,0 +1,75 @@
+{
+  "files": [
+    {
+      "required_url": "https://raw.githubusercontent.com/semgrep/semgrep-docs/refs/heads/main/docs/writing-rules/rule-syntax.mdx",
+      "required_fetch_error": "HTTP 404",
+      "url": "https://docs.semgrep.dev/writing-rules/rule-syntax.md",
+      "revision": null,
+      "license": "Official documentation source; copyright retained; research snapshot only",
+      "local": "documentation/rule-syntax.md.txt",
+      "sha256": "9278d3e986102c398e1d3e31c259e37d4a636d44f354bfd3165f8bf21e42be13"
+    },
+    {
+      "required_url": "https://raw.githubusercontent.com/semgrep/semgrep-docs/refs/heads/main/docs/writing-rules/pattern-syntax.mdx",
+      "required_fetch_error": "HTTP 404",
+      "url": "https://docs.semgrep.dev/writing-rules/pattern-syntax.md",
+      "revision": null,
+      "license": "Official documentation source; copyright retained; research snapshot only",
+      "local": "documentation/pattern-syntax.md.txt",
+      "sha256": "a729d1546cf65812173984abf3b1332218d659e7f3c3de1d1de4a218725a3ed9"
+    },
+    {
+      "required_url": "https://raw.githubusercontent.com/semgrep/semgrep-docs/refs/heads/main/docs/writing-rules/testing-rules.mdx",
+      "required_fetch_error": "HTTP 404",
+      "url": "https://docs.semgrep.dev/writing-rules/testing-rules.md",
+      "revision": null,
+      "license": "Official documentation source; copyright retained; research snapshot only",
+      "local": "documentation/testing-rules.md.txt",
+      "sha256": "f5626c7025b8038832ea3d4f304bea7ccb8bdd31c8006272b8a85353713422a2"
+    },
+    {
+      "required_url": "https://raw.githubusercontent.com/semgrep/semgrep-docs/refs/heads/main/docs/writing-rules/data-flow/taint-mode/overview.mdx",
+      "required_fetch_error": "HTTP 404",
+      "url": "https://docs.semgrep.dev/writing-rules/data-flow/taint-mode/overview.md",
+      "revision": null,
+      "license": "Official documentation source; copyright retained; research snapshot only",
+      "local": "documentation/overview.md.txt",
+      "sha256": "ba8c4b3660bdb913655829bb4f0e8877a8153deb82895197b786b2d5c2e3373f"
+    },
+    {
+      "required_url": "https://raw.githubusercontent.com/semgrep/semgrep-docs/refs/heads/main/docs/writing-rules/data-flow/taint-mode/advanced.mdx",
+      "required_fetch_error": "HTTP 404",
+      "url": "https://docs.semgrep.dev/writing-rules/data-flow/taint-mode/advanced.md",
+      "revision": null,
+      "license": "Official documentation source; copyright retained; research snapshot only",
+      "local": "documentation/advanced.md.txt",
+      "sha256": "d593db58f82dfb0b3340ac1ad870d6ad2facf1faf39a4a4114a941b4586892cd"
+    },
+    {
+      "required_url": "https://raw.githubusercontent.com/semgrep/semgrep-docs/refs/heads/main/docs/writing-rules/data-flow/constant-propagation.mdx",
+      "required_fetch_error": "HTTP 404",
+      "url": "https://docs.semgrep.dev/writing-rules/data-flow/constant-propagation.md",
+      "revision": null,
+      "license": "Official documentation source; copyright retained; research snapshot only",
+      "local": "documentation/constant-propagation.md.txt",
+      "sha256": "d7ac731ef74fd0b1c6843b1bb362165ce16e184ac36975154700780af337df76"
+    },
+    {
+      "required_url": "https://raw.githubusercontent.com/trailofbits/testing-handbook/refs/heads/main/content/docs/static-analysis/semgrep/10-advanced.md",
+      "url": "https://raw.githubusercontent.com/trailofbits/testing-handbook/a1803169418eee6b12dfd8f454f7fdc42542c4b6/content/docs/static-analysis/semgrep/10-advanced.md",
+      "revision": "a1803169418eee6b12dfd8f454f7fdc42542c4b6",
+      "local": "documentation/handbook-10-advanced.md.txt",
+      "sha256": "5666df4887f39b91b3f41493bd03b90d0b8aeccc817e017751c89d53903b9d6c"
+    }
+  ],
+  "host_reference": "https://developers.openai.com/codex/config-reference/",
+  "fetched_utc": "2026-11-08T00:42:46.941138+00:00",
+  "notes": [
+    "Six required semgrep/semgrep-docs raw URLs and repository metadata return HTTP 404; corresponding current official Markdown pages substituted, pinned by content SHA256 (no commit available). Upstream skill remains unchanged."
+  ],
+  "handbook_license": {
+    "url": "https://raw.githubusercontent.com/trailofbits/testing-handbook/a1803169418eee6b12dfd8f454f7fdc42542c4b6/LICENSE",
+    "local": "documentation/handbook-LICENSE.txt",
+    "sha256": "97d24386ff776d7160b87031b259a942bd03c9939796cab6724ad5d17d2cf785"
+  }
+}

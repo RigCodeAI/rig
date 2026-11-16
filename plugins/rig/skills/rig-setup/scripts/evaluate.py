@@ -1,25 +1,38 @@
 """Prepare independent behavior-checked data in a fresh native agent session.
 
 Opt-in setup step, never imported by Cargo/CI. No repository-specific fixtures
-or verifier program are inputs. The worker cannot read author rules/history.
+or verifier program are inputs. Candidate/history are not supplied; same-user filesystem secrecy is not claimed.
 """
 import argparse
 import json
 import os
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import tempfile
 import tomllib
 
 from native_host import auth_copy, bounded, environment, preflight
+from worker import WorkerError, failed, run as run_worker
 from qualify import sha, credit_lines
 
 
 TASK = '''Act as the independent security evaluator for an authorized Rig setup.
+The owner-authorized purpose is defensive repository security-rule validation.
+Use local disposable fixtures to check detection of unsafe behavior and controls
+for allowed behavior. Use harmless markers, in-memory data or disposable local
+data, and mocks only at external-service boundaries; preserve the real behavior
+being tested. No deployed targets, credentials, exfiltration, persistence or
+destructive actions are authorized. Describe the actual source-grounded operation
+and its limits openly; do not hide or substitute the requested behavior.
+This defensive context does not override any safety rules or establish that a
+model service permits the request. If the service refuses a required step, stop
+the affected evaluation, preserve the incomplete outcome and report the refusal
+clearly. Do not retry, rephrase or switch models to get around that refusal.
+
 You have repository SOURCE and the existing protective rule pack only. No rule
-author conversation, candidate rules, or prior evaluations are available.
+author conversation, candidate rules, or prior evaluations are supplied. Do not
+search outside the supplied source/output/tool paths for them.
 Inspect the application, its actual helpers/callers/configuration and inventory
 OWASP Top 10 2025 concerns: A01 Broken Access Control, A02 Security
 Misconfiguration, A03 Software Supply Chain Failures, A04 Cryptographic Failures,
@@ -167,13 +180,15 @@ def validate(output, project):
                          if p.is_file() and p.name not in ('freeze.json',)}}
 
 
-def prepare(project, output, baseline, seconds=900, focus=None, inventory=False, saved_obligations=None):
+def prepare(project, output, baseline, seconds=900, focus=None, inventory=False, saved_obligations=None, denied_paths=(), targets=None, progress=None):
+    progress = progress or (lambda stage: None)
+    progress('preparation')
     if sys.platform != 'darwin':
         raise RuntimeError('Independent native evaluator currently requires macOS sandbox-exec')
     project, archive, baseline = map(lambda p: Path(p).resolve(), (project, output, baseline))
     if archive.exists():
         raise RuntimeError('Preserve evaluation generations; output must be new')
-    archive.mkdir(parents=True)
+    archive.mkdir(parents=True, mode=0o700)
     # The native worker sees a source-only copy, never .rig or earlier agent data.
     state = Path(tempfile.mkdtemp(prefix='rig-setup-evaluator-')).resolve()
     output = state / 'evaluation'; output.mkdir()
@@ -189,18 +204,27 @@ def prepare(project, output, baseline, seconds=900, focus=None, inventory=False,
     tools = state / 'baseline.yaml'; shutil.copy2(baseline, tools)
     obligation = None
     if focus:
-        prior = json.loads(Path(focus).read_text())
+        prior = focus if isinstance(focus, dict) else json.loads(Path(focus).read_text())
         obligation = {k: prior[k] for k in ('statement', 'gap', 'paths', 'limitations') if k in prior}
         if not obligation.get('statement') or not obligation.get('paths'):
             raise RuntimeError('Revalidation focus needs the saved obligation and scope, never authored rules/cases')
     profile = state / 'profile'; profile.mkdir()
     for name in ('tmp', 'home'): (state / name).mkdir()
     default_home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex')))
-    auth_copy(default_home / 'auth.json', profile / 'auth.json')
     configured = tomllib.loads((default_home / 'config.toml').read_text())
-    config = 'forced_login_method="chatgpt"\ncli_auth_credentials_store="file"\nmodel_provider="openai"\napproval_policy="on-request"\nsandbox_mode="workspace-write"\n'
+    config = 'forced_login_method="chatgpt"\ncli_auth_credentials_store="file"\nmodel_provider="openai"\n'
+    # The outer caller sandbox still applies. Do not upgrade never/read-only,
+    # enable automatic review, or copy a sandbox-disabling setting.
+    approval = configured.get('approval_policy', 'never')
+    sandbox = configured.get('sandbox_mode', 'read-only')
+    if approval not in ('never', 'on-request', 'untrusted', 'on-failure'):
+        raise WorkerError(failed('permission_required'))
+    if sandbox not in ('read-only', 'workspace-write'):
+        sandbox = 'workspace-write'
+    config += 'approval_policy=' + json.dumps(approval) + '\nsandbox_mode=' + json.dumps(sandbox) + '\n'
     for key in ('model', 'model_reasoning_effort'):
         if key in configured: config += key + '=' + json.dumps(configured[key]) + '\n'
+    config += '[sandbox_workspace_write]\nnetwork_access=false\nexclude_slash_tmp=true\nexclude_tmpdir_env_var=true\n'
     config += '[features]\nmulti_agent=false\nmemories=false\nremote_plugin=false\n'
     (profile / 'config.toml').write_text(config)
     host = Path(shutil.which('codex')).resolve()
@@ -209,12 +233,12 @@ def prepare(project, output, baseline, seconds=900, focus=None, inventory=False,
     q = lambda p: json.dumps(str(Path(p).resolve()))
     # Source-copy parent instructions/history cannot leak across the role boundary.
     policy = state / 'worker.sb'
-    policy.write_text('(version 1)\n(allow default)\n(deny file-read* (subpath '+q(project)+') (subpath '+q(default_home)+'))\n(deny file-write*)\n'+
+    policy.write_text('(version 1)\n(allow default)\n(deny file-read* (subpath '+q(project)+') (subpath '+q(default_home)+')'+''.join(' (subpath '+q(p)+')' for p in denied_paths)+')\n(deny file-write*)\n'+
         ''.join('(allow file-write* (subpath '+q(p)+'))\n' for p in (output, profile, state/'tmp', state/'home'))+
         '(allow file-write* (literal "/dev/null") (literal "/dev/tty"))\n')
     prompt = (INVENTORY_TASK if inventory else TASK).replace('OUTPUT', str(output)).replace('SOURCE', str(source)).replace('BASELINE', str(tools))
     protocol = state / 'protocol'; protocol.mkdir()
-    for script in ('evaluate.py', 'native_host.py', 'qualify.py'):
+    for script in ('evaluate.py', 'native_host.py', 'worker.py', 'qualify.py', 'evaluation_feedback.py'):
         shutil.copy2(Path(__file__).parent/script, protocol/script)
     if inventory and saved_obligations:
         prompt += '\nSaved obligation metadata (no rules or test forms): '+json.dumps(saved_obligations)
@@ -222,36 +246,50 @@ def prepare(project, output, baseline, seconds=900, focus=None, inventory=False,
     prompt += '\nBefore finishing, run the existing protocol validator and fix any invalid construction yourself: '+str(sys.executable)+' -B '+str(protocol/'evaluate.py')+(' --validate-plan' if inventory else ' --validate')+' --project '+str(source)+' --output '+str(output)+'\nThis validates data only and starts no model or scanner.\n'
     if obligation:
         prompt += '\nRevalidate this saved obligation on CURRENT source (not a new unrelated gap). Treat its assumptions as untrusted; establish semantics again. Include regressions even if current source is safe. No previous rule or cases are supplied:\n'+json.dumps(obligation)
+    if targets:
+        prompt += '\nSource identity scope: construct cases for every caller path in this list, and no other targets. Helpers remain available as context. No candidate or author history is supplied: '+json.dumps(targets)+'\n'
     cell = archive / 'session'; cell.mkdir()
     controls = archive / 'controls'; controls.mkdir()
-    for script in ('evaluate.py', 'native_host.py', 'qualify.py'):
+    for script in ('evaluate.py', 'native_host.py', 'worker.py', 'qualify.py', 'evaluation_feedback.py'):
         shutil.copy2(Path(__file__).parent/script, controls/script)
     try:
+        progress('preflight')
+        auth_copy(default_home / 'auth.json', profile / 'auth.json')
         status = preflight(host, env, configured.get('model'))
         (cell / 'preflight.json').write_text(json.dumps(status, indent=2))
-        args = ['/usr/bin/sandbox-exec', '-f', str(policy), str(host), 'exec',
-                '--ephemeral', '--skip-git-repo-check', '--approve-for-me', '--json',
+        # Codex applies the preserved caller sandbox to its tools. A second
+        # outer Seatbelt profile prevents nested sandbox_apply on macOS. The
+        # fresh copy/profile omit author context; same-user read isolation is
+        # not claimed. Keep the strict separate oracle sandbox below.
+        args = [str(host), 'exec',
+                '--ephemeral', '--skip-git-repo-check', '--json',
                 '--add-dir', str(state/'tmp'), '-C', str(output), prompt]
         (cell/'request.json').write_text(json.dumps({'argv': args, 'fresh': True, 'author_context': False}))
+        progress('construction_session')
         result = bounded(args, source, env, cell, cap=seconds)
         (cell/'result.json').write_text(json.dumps(result))
-        if not inventory and (result['status'] != 'completed' or result['exit_code'] != 0):
-            raise RuntimeError('Independent evaluator session did not complete')
+        if result['status'] != 'completed' or result['exit_code'] != 0:
+            # Only a timeout may retain a valid partial discovery plan. Permission,
+            # cancellation, startup and cleanup failures never become success.
+            if not (inventory and result['status'] == 'timeout' and not result.get('cleanup_error')):
+                raise WorkerError(result)
         if inventory:
             plan=validate_plan(output,project)
             finished=result['status']=='completed' and result['exit_code']==0
             plan['discovery']={'complete':finished,'status':result['status'],'seconds':result['seconds'],'scope':'Bounded source discovery; uninspected obligations remain unknown. Inventory is not verified coverage.'}
             if any(sha(project/p)!=h for p,h in source_inputs.items()):raise RuntimeError('Source changed during discovery')
             shutil.copytree(output,archive/'artifacts')
-            return {'complete':True,'cases':0,'evaluation':str(output),'plan':plan}
+            return {'complete':finished,'cases':0,'evaluation':str(output),'plan':plan}
         # Rerun separately; no scanner output or author assertion supplies labels.
+        progress('oracle')
         oracle_policy = state / 'oracle.sb'
         oracle_policy.write_text(policy.read_text()+'\n(deny network*)\n')
-        p = subprocess.run(['/usr/bin/sandbox-exec', '-f', str(oracle_policy),
-                            sys.executable, '-B', str(output/'verify.py')],
-                           cwd=output, env=env, capture_output=True, text=True, timeout=120)
-        (output/'runtime-verification.log').write_text(p.stdout+'\n'+p.stderr)
-        if p.returncode: raise RuntimeError('Independent behavior oracle failed after session exit')
+        oracle = run_worker(['/usr/bin/sandbox-exec', '-f', str(oracle_policy),
+                             sys.executable, '-B', str(output/'verify.py')],
+                            output, env, cell/'oracle', 120)
+        if oracle['status'] != 'completed' or oracle['exit_code'] != 0:
+            raise WorkerError(oracle)
+        progress('case_validation')
         frozen = validate(output, project)
         if any(not (project/p).is_file() or sha(project/p) != h for p,h in source_inputs.items()):
             raise RuntimeError('Application changed during independent evaluation construction')
@@ -283,14 +321,18 @@ if __name__ == '__main__':
         print(json.dumps({'complete': checked['complete'], 'cases': checked['cases']}))
         sys.exit(0)
     if a.baseline is None:p.error('--baseline required for independent preparation')
-    result = prepare(a.project, a.output, a.baseline, a.seconds, a.focus,a.inventory,json.loads(a.saved_obligations.read_text()) if a.saved_obligations else None)
+    try:
+        result = prepare(a.project, a.output, a.baseline, a.seconds, a.focus,a.inventory,json.loads(a.saved_obligations.read_text()) if a.saved_obligations else None)
+    except WorkerError as error:
+        print(json.dumps({'complete': False, **error.outcome}))
+        sys.exit(2)
     # The invoking rule author must not receive private inventory/variation data.
     # Generic manifest construction can load hash fields programmatically without
     # displaying the oracle, private source or runtime observations to the model.
     location = Path(result['evaluation'])
     if a.inventory:
         print(json.dumps({'complete': result['complete'], 'plan': str(location/'worklist-plan.json')}))
-        sys.exit(0)
+        sys.exit(0 if result['complete'] else 2)
     print(json.dumps({'complete': result['complete'], 'cases': result['cases'],
                       'public': str(location/'public'),
                       'evaluation_metadata': str(location/'freeze.json'),

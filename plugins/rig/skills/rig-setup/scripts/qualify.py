@@ -2,6 +2,28 @@
 import concurrent.futures, hashlib, json, os, shutil, subprocess, sys, tempfile
 from pathlib import Path
 import tomllib
+from evaluation_feedback import EvaluationError, checkpoint
+
+
+def scan_error(receipt):
+    """Classify typed engine errors without publishing their private messages."""
+    evidence = receipt.get('evidence', {})
+    path = evidence.get('raw_path')
+    if path:
+        try:
+            raw = Path(path)
+            if raw.stat().st_size <= 16_777_216 and sha(raw) == evidence.get('raw_digest'):
+                kinds = {e.get('type') for e in json.loads(raw.read_text()).get('errors', [])
+                         if isinstance(e.get('type'), str)}
+                if kinds & {'Rule parse error', 'Pattern parse error', 'Invalid rule schema'}:
+                    return 'invalid_rule'
+                if kinds & {'Syntax error', 'Partial parsing'}:
+                    return 'target_parse_error'
+                if kinds:
+                    return 'scanner_error'
+        except (OSError, ValueError, TypeError):
+            pass
+    return 'incomplete_scan'
 
 
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -56,22 +78,45 @@ def native(rig, engine, rules, source, row, work):
     env=dict(os.environ,RIG_HOME=str(app.parent/(row['id']+'-state')),PYTHONDONTWRITEBYTECODE='1',
              SEMGREP_ENABLE_VERSION_CHECK='0',SEMGREP_SEND_METRICS='off')
     registration=subprocess.run([rig,'scanner','register',engine,'--name','independent-native','--rules',str(rules),'--application-model','off'],env=env,capture_output=True,text=True,timeout=20)
-    if registration.returncode:raise RuntimeError('Native scanner registration failed: '+registration.stderr)
-    p=subprocess.run([rig,'checks','run','--id','qualification'],cwd=app,env=env,capture_output=True,text=True,timeout=35)
+    if registration.returncode:raise EvaluationError('scanner_error')
+    p=subprocess.run([rig,'checks','run','--id','qualification','--path',target],cwd=app,env=env,capture_output=True,text=True,timeout=35)
     try:
         receipt=json.loads(p.stdout)
         findings=receipt.get('findings',[])
         complete=bool(p.returncode in [0,1] and receipt.get('executed') is True and receipt.get('freshness')=='current' and receipt.get('execution_status')=='completed' and receipt.get('logs_truncated') is False and receipt.get('scanned_files',0)>0 and receipt.get('state') in ['satisfied','violation'] and not receipt.get('diagnostics') and receipt.get('engine_version'))
         hit=any(f['path'].endswith(target) and f['line'] in credit_lines(row) for f in findings)
     except (ValueError,KeyError,TypeError):receipt={};findings=[];complete=False;hit=False
-    return {'complete':complete,'hit':hit,'findings':findings,'exit':p.returncode,'stdout':p.stdout,'stderr':p.stderr,'receipt':receipt}
+    return {'complete':complete,'hit':hit,'findings':findings,'exit':p.returncode,'stdout':p.stdout,'stderr':p.stderr,'receipt':receipt,
+            'error_kind':None if complete else scan_error(receipt)}
+
+def candidate_case(row, base, revised, isolated, candidate):
+    """Require candidate-only origin proof as well as the normal combined detection."""
+    def own_findings(result):
+        return [f for f in result['findings'] if any(
+            f['rule_id'] == rule['id'] or f['rule_id'].endswith('.' + rule['id'])
+            for rule in candidate['rules'])]
+    own = own_findings(revised)
+    isolated_own = own_findings(isolated)
+    lines = credit_lines(row)
+    def hits(findings):
+        return any((f['path'] == row['target'] or f['path'].endswith('/' + row['target']))
+                   and f['line'] in lines for f in findings)
+    # Prefix rewriting can make a baseline ID look like a candidate ID. A scan
+    # containing only candidate bytes establishes origin without parsing YAML IDs.
+    hit = hits(isolated_own) and hits(own)
+    return {'id':row['id'], 'expected':row['expected'],
+            'error':not (base['complete'] and revised['complete'] and isolated['complete']),
+            'caught':hit if row['expected']=='vulnerable' else None,
+            'attributed':hit if row['expected']=='vulnerable' else None,
+            'alarm':bool(own or isolated_own) if row['expected']=='safe' else None,
+            'baseline_missed':row['expected']=='vulnerable' and not base['hit'] and base['complete']}
 
 def authorize_and_run(invoke,ident):
     """Normal public CLI JSON is the default; approval grants execution only."""
     review=invoke(['checks','review','--id',ident])
     if not review.get('execution_approved'):
         invoke(['checks','approve','--id',ident,'--digest',review['approval_digest']])
-    return invoke(['checks','run','--id',ident])
+    return invoke(['checks','run','--id',ident,'--whole-project'])
 def adopt_qualified(invoke,ident):
     """Consume current qualification and normal advisory policy under setup auth."""
     q=invoke(['setup','--qualification',ident]) # Failed qualification stops before any policy action.
@@ -188,20 +233,19 @@ def run(manifest):
         def one(row):
             base=native(m['rig'],m['engine'],baseline_file,root,row,work/'baseline')
             revised=native(m['rig'],m['engine'],combined,root,row,work/'candidate')
+            isolated=native(m['rig'],m['engine'],rules,root,row,work/'candidate-only')
             if base['complete']:retain(base,out/'native-evidence'/row['id']/'baseline')
             if revised['complete']:retain(revised,out/'native-evidence'/row['id']/'candidate')
-            return row,base,revised
+            if isolated['complete']:retain(isolated,out/'native-evidence'/row['id']/'candidate-only')
+            return row,base,revised,isolated
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-            for row,base,revised in pool.map(one,cohort['cases']):
-                error=not(base['complete'] and revised['complete'])
-                # Safe controls reject ANY new candidate finding on the real caller,
-                # including mistaken attribution elsewhere; baseline extras retained.
-                own=[f for f in revised['findings'] if any(f['rule_id']==r['id'] or f['rule_id'].endswith('.'+r['id']) for r in candidate['rules'])]
-                cases.append({'id':row['id'],'expected':row['expected'],'error':error,'caught':revised['hit'] if row['expected']=='vulnerable' else None,
-                    'attributed':revised['hit'] if row['expected']=='vulnerable' else None,'alarm':bool(own) if row['expected']=='safe' else None,
-                    'baseline_missed':row['expected']=='vulnerable' and not base['hit'] and base['complete']})
-                raws.append({'case':row,'baseline':base,'candidate':revised})
+            for row,base,revised,isolated in pool.map(one,cohort['cases']):
+                cases.append(candidate_case(row,base,revised,isolated,candidate))
+                raws.append({'case':row,'baseline':base,'candidate':revised,'candidate_only':isolated})
                 (out/'raw-results.json').write_text(json.dumps(raws,indent=2))
+                if any(not scan['complete'] for scan in (base,revised,isolated)):
+                    reason=next((scan.get('error_kind') or 'incomplete_scan' for scan in (isolated,revised,base) if not scan['complete']))
+                    checkpoint(m.get('diagnostic_job'),'native_scan',reason)
     value={'schema_version':1,'kind':'app_rule_qualification','complete':len(cases)==len(cohort['cases']) and not any(c['error'] for c in cases),
         'native_rig':True,'independent':purpose=='qualification','rules_semantic_sha256':semantic,'rules_sha256':candidate_sha,'baseline_check':baseline['id'],'baseline_rules_sha256':sha(baseline_file),
         'baseline_missed':sum(c['baseline_missed'] for c in cases),'cases':cases,'targets':sorted({c['target'] for c in cohort['cases']}),

@@ -1,0 +1,13 @@
+{
+  "bootstrap_sha256": "cabbb309aa15b8da55896fa51e61659f7b1ffc8d17b13d0e1a132dc22c2717d0",
+  "installer_sha256": "d7d0e4edafbf0a7c643968e5849c79affd6168a4324cd3596faf076577102477",
+  "origin": "https://downloads.rig.ai",
+  "publication_order": 43803597711,
+  "revision": "64fa495aa1087d6d6c4b636612eea352e7c8bc81",
+  "schema_version": "rig.cli-release/v2",
+  "sequence": 43806675859001,
+  "sha256_aarch64-apple-darwin": "5ccdd7d65c0ef305c68556d7126ac0487562e7d6c504066a1d3df2a9d3981c15",
+  "sha256_aarch64-unknown-linux-gnu": "768bca9af04d6af68f8f7571afd84fb6e57dbc7dbaecf01d63a066433602424f",
+  "sha256_x86_64-unknown-linux-gnu": "7e2b42ec93738ee8f6c1df75949cd472ea98e857cd8f03dd32360f9db5e56069",
+  "version": "0.1.20"
+}

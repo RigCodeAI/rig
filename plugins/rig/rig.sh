@@ -4,7 +4,8 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 RIG_PLUGIN_ROOT=$root
 export RIG_PLUGIN_ROOT
-version=$(cat "$root/runtime-version")
+runtime_version=0.1.20
+source_revision=64fa495aa1087d6d6c4b636612eea352e7c8bc81
 fail() {
     printf 'Rig runtime setup failed: %s\n' "$1" >&2
     if [ "${1:-}" != '' ] && [ "${hook_call:-0}" = 1 ]; then
@@ -15,13 +16,16 @@ fail() {
 }
 hook_call=0
 if [ "${1:-}" = plugin ] && [ "${2:-}" = hook ]; then hook_call=1; fi
+version=$(cat "$root/runtime-version") || fail 'missing runtime pin; reinstall the Rig plugin'
 case "$version" in ''|*[!0-9.]*|.*) fail 'invalid pinned runtime version';; esac
+if [ "$source_revision" != unreleased ] && [ ! -f "$root/runtime-SHA256SUMS" ]; then
+    fail 'missing packaged checksums; reinstall the Rig plugin'
+fi
 case "$(uname -s)/$(uname -m)" in
     Darwin/arm64) target=aarch64-apple-darwin;;
-    Darwin/x86_64) target=x86_64-apple-darwin;;
     Linux/aarch64|Linux/arm64) target=aarch64-unknown-linux-gnu;;
     Linux/x86_64) target=x86_64-unknown-linux-gnu;;
-    *) fail 'native plugin delivery supports Linux/macOS x64/arm64 only';;
+    *) fail 'native plugin delivery supports Apple Silicon macOS and Linux x64/arm64 only';;
 esac
 home=${RIG_HOME:-${RIG_CONFIG_HOME:-${HOME:?HOME is required}/.rig}}
 case "$home" in '~') home=$HOME;; '~/'*) home=$HOME/${home#\~/};; esac
@@ -37,21 +41,21 @@ checksum() {
 }
 if [ ! -d "$cache" ]; then
     lock=$parent/$target.lock
-    mkdir "$lock" 2>/dev/null || fail 'runtime setup is already running; retry after it finishes'
+    mkdir "$lock" 2>/dev/null || fail "runtime setup lock exists at $lock; wait for active setup, or remove this lock after confirming setup has stopped, then restart the agent"
     tmp=$lock/download
     mkdir "$tmp"
     trap 'rm -rf "$lock"' EXIT
     trap 'exit 130' INT
     trap 'exit 143' TERM
     asset=rig-$target
-    base=https://downloads.rig.ai/releases/67df8e187716ebed85cee517d3f7da846ed3ca1c/42028424211001
+    base=https://downloads.rig.ai/releases/64fa495aa1087d6d6c4b636612eea352e7c8bc81/43806675859001
     printf 'Rig: downloading pinned runtime %s (%s).\n' "$version" "$target" >&2
     if [ -f "$root/runtime-SHA256SUMS" ]; then
         cp "$root/runtime-SHA256SUMS" "$tmp/SHA256SUMS"
     else
         curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' \
-            --connect-timeout 10 --max-time 15 --max-filesize 8192 \
-            "$base/SHA256SUMS" --output "$tmp/SHA256SUMS" || fail 'release checksums unavailable; the pinned release must be published first'
+        --connect-timeout 10 --max-time 15 --max-filesize 8192 \
+        "$base/SHA256SUMS" --output "$tmp/SHA256SUMS" || fail 'release checksums unavailable; the pinned release must be published first'
     fi
     expected=$(awk -v name="$asset" '$2 == name {print $1}' "$tmp/SHA256SUMS")
     case "$expected" in ''|*[!0-9a-f]*) fail 'invalid release checksum';; esac
@@ -71,4 +75,14 @@ fi
 [ -f "$cache/rig" ] && [ -f "$cache/rig.sha256" ] || fail 'incomplete runtime cache; remove this version cache and retry'
 actual=$(checksum "$cache/rig") || fail 'cannot verify cached runtime'
 [ "$actual" = "$(cat "$cache/rig.sha256")" ] || fail 'cached runtime changed; remove this version cache and retry'
+if [ -f "$root/runtime-SHA256SUMS" ]; then
+    expected=$(awk -v name="rig-$target" '$2 == name {print $1}' "$root/runtime-SHA256SUMS")
+    [ "$actual" = "$expected" ] || fail 'cached runtime differs from selected release; reinstall the Rig plugin'
+fi
+[ -x "$cache/rig" ] || fail 'runtime is not executable; remove this version cache and retry'
+if [ "$source_revision" != unreleased ]; then
+    [ "$("$cache/rig" --build-revision)" = "$source_revision" ] || fail 'runtime source revision mismatch; reinstall the Rig plugin'
+    [ "$("$cache/rig" --version)" = "rig $runtime_version" ] || fail 'runtime version mismatch; reinstall the Rig plugin'
+fi
+printf 'Rig plugin %s; runtime %s; source %s; executable %s\n' "$version" "$runtime_version" "$source_revision" "$cache/rig" >&2
 exec "$cache/rig" "$@"

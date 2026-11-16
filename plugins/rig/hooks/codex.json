@@ -6,7 +6,7 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook codex start",
-            "timeout": 180
+            "timeout": 23160
           }
         ]
       }
@@ -17,7 +17,7 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook codex prompt",
-            "timeout": 180
+            "timeout": 23160
           }
         ]
       }
@@ -28,7 +28,7 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook codex stop",
-            "timeout": 180
+            "timeout": 23160
           }
         ]
       }
@@ -39,7 +39,7 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook codex checkpoint",
-            "timeout": 180
+            "timeout": 23160
           }
         ]
       }

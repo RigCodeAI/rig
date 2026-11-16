@@ -1,0 +1,10 @@
+{
+  "revision": "e4dd0bb5b15535f7c5a0834187dffba6ac37e4ff",
+  "license": "CC-BY-SA-4.0",
+  "files": {
+    "references/upstream/skill.txt": "6ca2e3b8520ed20af1b0879b7cab318832fcbe89c19c17a9fa347a45a9f28913",
+    "references/upstream/LICENSE": "7abe19ec9bb73b36141b999b861d24ad855e808bafe0f81e84cce28556f6c297",
+    "references/upstream/workflow.txt": "3dab347aa2e2c78b5a7a94ebb0d73d92dcb5c7df87d60ea9ee8f2671eba1c7b9",
+    "references/upstream/quick-reference.txt": "3e87f6e87b7cab07578037c6db1fb7d7cb57be03bbccc793c043720a8c3a435e"
+  }
+}

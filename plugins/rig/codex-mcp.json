@@ -1,17 +1,19 @@
 {
   "mcpServers": {
     "rig": {
-      "command": "sh",
       "args": [
         "-c",
-        "exec sh \"${CODEX_HOME:-$HOME/.codex}/plugins/cache/rig/rig/0.1.0/rig.sh\" mcp"
+        "exec sh \"${CODEX_HOME:-$HOME/.codex}/plugins/cache/rig/rig/0.1.43806675859001/rig.sh\" mcp"
       ],
+      "command": "sh",
       "env_vars": [
         "CODEX_HOME",
         "RIG_HOME",
         "RIG_CONFIG_HOME",
         "RIG_TRACE_FILE"
-      ]
+      ],
+      "startup_timeout_sec": 120,
+      "tool_timeout_sec": 11640
     }
   }
 }

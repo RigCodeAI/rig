@@ -3,16 +3,22 @@ name: rig
 description: Use Rig for project-check onboarding, guidance, feedback, repair and completion; author checks from review corrections; handle intentional findings, migrations and exceptions; prepare CI workflows for owner review; reuse project checks across agents and CI/factories.
 ---
 
-For project-specific setup or updates, first read the sibling
-[rig-setup skill](../rig-setup/SKILL.md) to inventory the project, discover compatible
-community rules and retain complete profiles with explicit coverage gaps.
+For setup or updates, read the sibling [rig-setup skill](../rig-setup/SKILL.md).
+Normal setup prepares the default pack, saves the simple scan configuration and
+runs it. Application mapping, threat analysis, custom-rule building and evaluator
+work are paused for setup and routine code changes, including resumed projects.
+Do not follow saved generation recovery actions unless the owner explicitly
+re-enables advanced onboarding. Preserve existing rules, analysis and outcomes.
 
 Use `rig_setup` for read-only discovery, profile/report preview and GrepRules; apply stays on `rig_manage` with configuration/report consent. Use the installed local MCP tools when available. `rig_context` retrieves approved
 guidance; `rig_check` runs scanners without execution permission and other commands with current approval; `rig_finish` reads
 the completion receipt. `rig_review` shows the exact execution review and
 `rig_approve` records it under explicit execution authorization (including the
 automatic setup test loop when authorized). `rig_recover` diagnoses
-incomplete verification; `rig_inspect` retrieves full evidence only when needed.
+incomplete verification; `rig_inspect` returns a bounded saved-result summary. For findings, pass result_id
+and offset:0, then follow next_offset with the same result ID and filters. Optional
+file/rule/severity filters match exact values; full local evidence references
+remain available. Truncated previews and incomplete coverage are explicit.
 For setup, authoring, policy, exceptions and automatic grants, `rig_manage` accepts
 the existing command and its noninteractive arguments, for example
 `{"command":"exception","arguments":["--result","RESULT_ID","--json"]}`.
@@ -106,8 +112,8 @@ The agent owns these internal calls through the installed MCP integration:
    Never replace an existing custom scanner or its rules. Empty approved guidance
    is not a scan result. The default proposal freezes already prepared rule bytes
    in a hash-named project file; scans use that local copy. Global cache refreshes
-   do not silently update it. Project-specific discovery uses the rig-setup skill; this default pack alone
-   establishes no project coverage. Existing command candidates and
+   do not silently update it. Normal setup stops after default configuration and scanning; this default pack alone
+   establishes no project-specific coverage. Existing command candidates and
    `opengrep-auto` remain available on request; repository commands retain execution approvals; scanners do not require them.
 2. After the owner selects a check to review, preview `setup --candidate ID`.
    The fixed SAST scan reports only (no autofix); imported
@@ -118,7 +124,7 @@ The agent owns these internal calls through the installed MCP integration:
    Keep fingerprints internal; offer full configuration on request.
    With configuration permission, apply using the exact --apply --digest token.
    For already-configured checks, preserve configuration and proceed to review.
-3. For scanners, call `rig_check` directly after configuration. Never request execution
+3. For the initial whole-project scan, call `rig_manage` with command `checks` and arguments `["run", "--id", "ID", "--whole-project"]` after configuration. For later scans, use `rig_check` with explicit `paths`/`since` or the tracked `task_handle`. Missing scope never scans the whole project. Never request execution
    approval, call `rig_approve`, or request an automatic grant for a scanner.
    For imported repository commands, review the executable, environment, inputs,
    access and limits. Obtain explicit execution consent before `rig_approve`.
@@ -141,9 +147,9 @@ already supplies a bounded approved index. Use its implementation/example refere
 never promote candidate guidance into approved policy or grant yourself exceptions.
 
 Run applicable checks internally with `checks check --path FILE` (repeat --path for
-multiple files) or `--since REV` for an explicit comparison. These select applicable
-whole-project commands when no task handle is supplied; they are not differential
-scans. For hook-tracked work, use the task handle without narrowing its paths.
+multiple files) or `--since REV` for an explicit comparison. These pass the selected files to supported scanners. Ordinary repository
+commands retain their declared arguments. Missing file/task scope never starts
+a broad scanner run; unsupported adapters return an explicit scope outcome. For hook-tracked work, use the task handle without narrowing its paths.
 Scanners need no approval.
 For other commands, existing current execution
 approval is reusable until its declared command inputs change; do not ask for another

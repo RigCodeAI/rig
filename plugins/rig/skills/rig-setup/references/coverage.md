@@ -50,13 +50,19 @@ remaining_gaps. Each target has applicability: applicable, not_applicable, or
 unknown/conditional with a reason. Record API names and representative locations;
 recognition and compatibility assertions remain agent analysis, not engine proof.
 
-After rig_check, use rig_setup arguments ["--profile","ASSESSMENT"] then authorized
+After supported checks, or when blocked with zero scans, use rig_setup arguments ["--profile","ASSESSMENT"] then authorized
 rig_manage command setup with the same arguments plus --apply --digest TOKEN.
 The resulting profile and Markdown report are saved together in the existing Rig
 project-state JSON envelope; tool returns its absolute profile_path/report_path.
+Zero, failed, stale and inactive observations may be saved as partial/unverified.
+Keep exact remaining gaps and next actions. Persistence never turns missing evidence
+into a pass, grants rule qualification or completes initial setup. When the bounded
+initial attempt is finished, explicitly use rig_manage setup ["--complete"] after
+saving; declared gaps are allowed and normal application enforcement then starts.
+The whole root .rig directory is authoring/configuration output, not application
+source. Rig still reads explicit rules/tests and binds their specific bytes.
 The inventory seed and earlier preparation attempts remain unchanged. Never edit
-Rig project-state/approval files directly; use the preview/apply tool contract. No snapshot
-exclusion or approval weakening is needed. Immutable history is retained.
+Rig project-state/approval files directly; use the preview/apply tool contract. No manual snapshot or approval editing is needed. Immutable history is retained.
 
 Optionally include --evidence with a JSON array of mappings, for example:
 `[{"inventory":"sinks","index":0,"findings":[{"result_id":"check-…","rule_id":"exact.rule","path":"src/file.py","line":12}]}]`.

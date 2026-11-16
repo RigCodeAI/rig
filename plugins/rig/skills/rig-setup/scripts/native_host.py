@@ -5,10 +5,10 @@ No model calls occur on import or in normal CI.
 import json
 import os
 from pathlib import Path
-import queue
-import signal
-import subprocess
-import threading
+import tempfile
+import time
+
+from worker import CAPTURE_LIMIT_BYTES, Worker, WorkerError, failed, run
 
 
 def environment(home,state):
@@ -18,36 +18,76 @@ def environment(home,state):
 
 
 class Rpc:
-    def __init__(self,host,env):
-        self.p=subprocess.Popen([str(host),'app-server','--stdio'],env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,start_new_session=True)
-        self.rows=queue.Queue();self.next_id=0
-        def reader():
-            for line in self.p.stdout:
-                try:self.rows.put(json.loads(line))
-                except ValueError:pass
-        threading.Thread(target=reader,daemon=True).start()
+    def __init__(self, host, env):
+        self.temp = tempfile.TemporaryDirectory(prefix='rig-preflight-')
+        self.worker = None
+        self.next_id = 0
+        self.offset = 0
+        self.pending = b''
         try:
-            self.request('initialize',{'clientInfo':{'name':'rig_benchmark','version':'1.0'},'capabilities':{'experimentalApi':True}})
-            self.send({'method':'initialized','params':{}})
-        except Exception:
-            self.close();raise
+            self.worker = Worker([str(host), 'app-server', '--stdio'], Path.cwd(),
+                env, Path(self.temp.name)/'worker', 120, forward_stdin=True)
+            self.request('initialize', {'clientInfo': {'name': 'rig_setup', 'version': '1.0'},
+                'capabilities': {'experimentalApi': True}})
+            self.send({'method': 'initialized', 'params': {}})
+        except BaseException:
+            self.close()
+            raise
 
-    def send(self,value):self.p.stdin.write(json.dumps(value)+'\n');self.p.stdin.flush()
+    def send(self, value):
+        self.worker.send(value)
 
-    def request(self,method,params=None):
-        self.next_id+=1;ident=self.next_id
-        self.send({'id':ident,'method':method,**({'params':params} if params is not None else {})})
-        while True:
-            row=self.rows.get(timeout=30)
-            if row.get('id')==ident:
-                if 'error' in row:raise RuntimeError(str(row['error']))
-                return row['result']
+    def request(self, method, params=None):
+        self.next_id += 1
+        ident = self.next_id
+        self.send({'id': ident, 'method': method,
+            **({'params': params} if params is not None else {})})
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            path = self.worker.directory / 'stdout'
+            try:
+                with path.open('rb') as stream:
+                    stream.seek(self.offset)
+                    data = stream.read(65_536)
+                    self.offset = stream.tell()
+            except FileNotFoundError:
+                data = b''
+            self.pending += data
+            if len(self.pending) > 1_048_576:
+                raise WorkerError(failed('output_limit'))
+            while b'\n' in self.pending:
+                line, self.pending = self.pending.split(b'\n', 1)
+                try:
+                    row = json.loads(line)
+                except (ValueError, UnicodeError):
+                    continue
+                if not isinstance(row, dict):
+                    continue
+                if row.get('id') == ident:
+                    if 'error' in row:
+                        raise WorkerError(failed('rpc_failed'))
+                    return row.get('result', {})
+            outcome = self.worker.poll()
+            if outcome is not None:
+                raise WorkerError(outcome if outcome['status'] != 'completed' else failed('rpc_failed'))
+            time.sleep(.01)
+        raise WorkerError(failed('timeout'))
 
     def close(self):
-        try:os.killpg(self.p.pid,signal.SIGKILL)
-        except ProcessLookupError:pass
-        self.p.wait(timeout=5)
-        for stream in (self.p.stdin,self.p.stdout):stream.close()
+        try:
+            if self.worker is not None:
+                outcome = self.worker.close()
+                # Cancellation is the normal way to close a live RPC session.
+                if outcome and outcome.get('cleanup_error'):
+                    import sys
+                    if sys.exception() is not None:
+                        if isinstance(sys.exception(), WorkerError):
+                            sys.exception().outcome['cleanup_error'] = True
+                        sys.exception().add_note('Owned preflight cleanup also failed.')
+                    else:
+                        raise WorkerError(outcome)
+        finally:
+            self.temp.cleanup()
 
 
 def quota_ok(limits):
@@ -80,52 +120,67 @@ def preflight(host,env,model=None):
         return result
     finally:rpc.close()
 
-import time
 def auth_copy(source,dest):
     data=json.loads(Path(source).read_text())
     if data.get('auth_mode')!='chatgpt' or not data.get('tokens') or data.get('OPENAI_API_KEY'):raise RuntimeError('Subscription auth file required; no API key route')
     __import__("shutil").copyfile(source,dest);Path(dest).chmod(0o600)
 
-def processes():
-    lines=subprocess.check_output(['ps','-axo','pid=,ppid=,pgid='],text=True).splitlines()
-    return [tuple(map(int,line.split())) for line in lines if len(line.split())==3]
+def bounded(argv, cwd, env, cell, cap=600, cancel=None, rig=None):
+    offset = 0
+    pending = b''
+    rejected = None
 
-def cleanup(child,owned):
-    current={pid:pgid for pid,_,pgid in processes()}
-    groups={child.pid} if child.poll() is None else set()
-    groups.update(pgid for pid,pgid in owned.items() if current.get(pid)==pgid)
-    for group in groups:
-        if group==os.getpgrp():continue
-        try:os.killpg(group,signal.SIGKILL)
-        except ProcessLookupError:pass
-    child.wait()
-
-def bounded(argv,cwd,env,cell,cap=600):
-    owned={};start=time.monotonic();status='completed';offset=0;pending='';events=[]
-    with (cell/'transcript.jsonl').open('w') as out,(cell/'stderr.log').open('w') as err:
-        p=subprocess.Popen(argv,cwd=cwd,env=env,stdout=out,stderr=err,start_new_session=True)
+    def inspect(line):
+        if not line.strip():
+            return None
         try:
-            while p.poll() is None:
-                parents={p.pid}|set(owned)
-                rows=processes();again=True
-                while again:
-                    again=False
-                    for pid,ppid,pgid in rows:
-                        if ppid in parents and pid not in parents:
-                            parents.add(pid);owned[pid]=pgid;again=True
-                with (cell/'transcript.jsonl').open() as stream:
-                    stream.seek(offset);pending+=stream.read();offset=stream.tell()
-                while '\n' in pending:
-                    line,pending=pending.split('\n',1)
-                    try:e=json.loads(line)
-                    except ValueError:continue
-                    events.append(e)
-                    if e.get('subtype')=='init' and e.get('apiKeySource')!='none':status='auth_route_rejected'
-                    info=e.get('rate_limit_info',{})
-                    if info.get('isUsingOverage'):status='overage_rejected'
-                    if info.get('status')=='rejected':status='quota_rejected'
-                if status!='completed':break
-                if time.monotonic()-start>=cap:status='timeout';break
-                time.sleep(min(.25,max(0,cap-(time.monotonic()-start))))
-        finally:cleanup(p,owned)
-    return {'exit_code':p.returncode,'status':status,'seconds':round(time.monotonic()-start,3)}
+            event = json.loads(line)
+        except (ValueError, UnicodeError, RecursionError):
+            return 'rpc_failed'
+        if not isinstance(event, dict):
+            return 'rpc_failed'
+        if event.get('subtype') == 'init' and event.get('apiKeySource') != 'none':
+            return 'auth_route_rejected'
+        info = event.get('rate_limit_info', {})
+        if isinstance(info, dict):
+            if info.get('isUsingOverage'):
+                return 'overage_rejected'
+            if info.get('status') == 'rejected':
+                return 'quota_rejected'
+        return None
+
+    def observe():
+        nonlocal offset, pending, rejected
+        path = Path(cell) / 'worker' / 'stdout'
+        try:
+            with path.open('rb') as stream:
+                stream.seek(offset)
+                pending += stream.read(65_536)
+                offset = stream.tell()
+        except FileNotFoundError:
+            return rejected
+        # Session events include escaped command output; retain the native stream bound.
+        if len(pending) > CAPTURE_LIMIT_BYTES:
+            return 'output_limit'
+        while b'\n' in pending:
+            line, pending = pending.split(b'\n', 1)
+            rejected = rejected or inspect(line)
+        return rejected
+
+    result = run(argv, cwd, env, Path(cell) / 'worker', cap,
+                 cancel=cancel, rig=rig, observe=observe)
+    # Drain bounded final events too; fast exits cannot bypass auth guards.
+    path = Path(cell) / 'worker' / 'stdout'
+    while path.exists() and offset < path.stat().st_size:
+        reject = observe()
+        if reject:
+            if result['status'] == 'completed':
+                result['status'] = reject
+            break
+    # A fast exit or missing final newline cannot hide an auth/overage event.
+    # Invalid or truncated JSON never becomes successful evidence.
+    if result['status'] == 'completed' and pending:
+        reject = inspect(pending)
+        if reject:
+            result['status'] = reject
+    return result
