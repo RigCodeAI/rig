@@ -4,8 +4,9 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 RIG_PLUGIN_ROOT=$root
 export RIG_PLUGIN_ROOT
-runtime_version=0.1.20
-source_revision=64fa495aa1087d6d6c4b636612eea352e7c8bc81
+runtime_version=0.1.22
+source_revision=2d3cf761f908dc3c1b96257128651b91a512cda0
+agent_contract=1
 fail() {
     printf 'Rig runtime setup failed: %s\n' "$1" >&2
     if [ "${1:-}" != '' ] && [ "${hook_call:-0}" = 1 ]; then
@@ -39,28 +40,42 @@ checksum() {
     elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d ' ' -f 1
     else return 1; fi
 }
-if [ ! -d "$cache" ]; then
+install_runtime() {
+    [ "${RIG_OFFLINE+x}" != x ] || fail 'Rig is offline and the pinned runtime is not cached'
     lock=$parent/$target.lock
-    mkdir "$lock" 2>/dev/null || fail "runtime setup lock exists at $lock; wait for active setup, or remove this lock after confirming setup has stopped, then restart the agent"
+    waited=0
+    until mkdir "$lock" 2>/dev/null; do
+        # A host can start its SessionStart hook and MCP server concurrently.
+        # Only the owner downloads. Each consumer still verifies the cache.
+        [ ! -d "$cache" ] || return 0
+        [ -d "$lock" ] || [ -w "$parent" ] || fail 'cannot acquire the runtime setup lock'
+        [ "$waited" -lt 50 ] || fail "runtime setup did not finish; remove $lock only after confirming setup has stopped"
+        sleep 1
+        waited=$((waited + 1))
+    done
+    if [ -d "$cache" ]; then
+        rmdir "$lock"
+        return 0
+    fi
     tmp=$lock/download
     mkdir "$tmp"
     trap 'rm -rf "$lock"' EXIT
     trap 'exit 130' INT
     trap 'exit 143' TERM
     asset=rig-$target
-    base=https://downloads.rig.ai/releases/64fa495aa1087d6d6c4b636612eea352e7c8bc81/43806675859001
+    base=https://downloads.rig.ai/releases/2d3cf761f908dc3c1b96257128651b91a512cda0/43981033934001
     printf 'Rig: downloading pinned runtime %s (%s).\n' "$version" "$target" >&2
     if [ -f "$root/runtime-SHA256SUMS" ]; then
         cp "$root/runtime-SHA256SUMS" "$tmp/SHA256SUMS"
     else
-        curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' \
+        curl --disable --fail --location --silent --show-error --proto '=https' --proto-redir '=https' \
         --connect-timeout 10 --max-time 15 --max-filesize 8192 \
         "$base/SHA256SUMS" --output "$tmp/SHA256SUMS" || fail 'release checksums unavailable; the pinned release must be published first'
     fi
     expected=$(awk -v name="$asset" '$2 == name {print $1}' "$tmp/SHA256SUMS")
     case "$expected" in ''|*[!0-9a-f]*) fail 'invalid release checksum';; esac
     [ "${#expected}" -eq 64 ] || fail 'missing or duplicate release checksum'
-    curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' \
+    curl --disable --fail --location --silent --show-error --proto '=https' --proto-redir '=https' \
         --connect-timeout 10 --max-time 45 --max-filesize 100000000 \
         "$base/$asset" --output "$tmp/rig" || fail 'runtime download failed'
     actual=$(checksum "$tmp/rig") || fail 'SHA-256 utility unavailable'
@@ -71,7 +86,8 @@ if [ ! -d "$cache" ]; then
     mv "$tmp" "$cache" || fail 'cannot install verified runtime atomically'
     rm -rf "$lock"
     trap - EXIT INT TERM
-fi
+}
+[ -d "$cache" ] || install_runtime
 [ -f "$cache/rig" ] && [ -f "$cache/rig.sha256" ] || fail 'incomplete runtime cache; remove this version cache and retry'
 actual=$(checksum "$cache/rig") || fail 'cannot verify cached runtime'
 [ "$actual" = "$(cat "$cache/rig.sha256")" ] || fail 'cached runtime changed; remove this version cache and retry'
@@ -85,4 +101,7 @@ if [ "$source_revision" != unreleased ]; then
     [ "$("$cache/rig" --version)" = "rig $runtime_version" ] || fail 'runtime version mismatch; reinstall the Rig plugin'
 fi
 printf 'Rig plugin %s; runtime %s; source %s; executable %s\n' "$version" "$runtime_version" "$source_revision" "$cache/rig" >&2
+if [ "$agent_contract" != unreleased ]; then
+    exec "$cache/rig" --require-agent-contract "$agent_contract" --require-release "$runtime_version" "$@"
+fi
 exec "$cache/rig" "$@"

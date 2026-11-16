@@ -22,8 +22,14 @@ codex plugin add rig@rig
 ```
 
 Review your agent's hook trust requirements, then start a new session in your
-project. The plugin downloads and verifies its matching Rig program automatically.
-Supported systems: macOS and Linux, on Intel/AMD or Arm processors.
+project. Hook or MCP startup downloads and verifies the pinned Rig executable
+when its versioned cache is empty. Installing the plugin alone installs its
+agent resources. A standalone installation is how you get a `rig` command on PATH.
+Supported systems are Apple Silicon macOS and GNU/Linux x64 or arm64.
+
+To update, run `codex plugin marketplace upgrade rig` for Codex, or run
+`claude plugin marketplace update rig` followed by `claude plugin update rig@rig`
+for Claude Code. Start a new session to use the new package.
 
 ## Install the standalone CLI
 
@@ -31,7 +37,8 @@ Supported systems: macOS and Linux, on Intel/AMD or Arm processors.
 curl -fsSL https://downloads.rig.ai/install.sh | sh
 ```
 
-Then run `rig setup` and `rig scan /path/to/project`.
+If needed, add the install directory to PATH. For the default directory, run
+`export PATH="$HOME/.local/bin:$PATH"`. Then run `rig setup` and `rig scan /path/to/project`.
 
 The CLI installer selects the current release. Each plugin publication pins its
 own tested release. You do not need to install the standalone CLI for the plugin.
