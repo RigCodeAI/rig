@@ -42,6 +42,14 @@ supported CLI/CI/debugging; resolve it relative to this skill and use
 `sh <absolute-launcher> ...`. Hook environment variables are not inherited by shell
 calls. Native hook and MCP server trust remain the host owner's steps.
 
+For a PR in another registered checkout, pass its root as `worktree` to
+`rig_check` and use paths relative to that checkout, or pass `since`. Repeat
+the selector for context, inspection, finding responses, status and finish.
+Each omitted selector uses the host launch checkout. When the PR has no
+`.rig/`, Rig can use the configured main checkout's pinned static rules.
+If Rig requests a source, pass the configured sibling as `policy_source`
+on each call. Use only task handles issued in the selected checkout.
+
 For hook-supplied `task_handle`, pass that exact handle to `rig_context`,
 `rig_check`, `rig_finish`, `rig_inspect`, `rig_status` and `rig_respond`.
 Never infer another session's handle from a recent repository result.

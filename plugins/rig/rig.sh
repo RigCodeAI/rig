@@ -4,8 +4,8 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 RIG_PLUGIN_ROOT=$root
 export RIG_PLUGIN_ROOT
-runtime_version=0.1.24
-source_revision=6c216a2db5753e86420aa67b13b0e481e16d1d71
+runtime_version=0.1.26
+source_revision=87aa81ec6fe7c254819b381b4253a4a917e4cc81
 agent_contract=1
 fail() {
     printf 'Rig runtime setup failed: %s\n' "$1" >&2
@@ -63,7 +63,7 @@ install_runtime() {
     trap 'exit 130' INT
     trap 'exit 143' TERM
     asset=rig-$target
-    base=https://downloads.rig.ai/releases/6c216a2db5753e86420aa67b13b0e481e16d1d71/44209426844001
+    base=https://downloads.rig.ai/releases/87aa81ec6fe7c254819b381b4253a4a917e4cc81/44421699555001
     printf 'Rig: downloading pinned runtime %s (%s).\n' "$version" "$target" >&2
     if [ -f "$root/runtime-SHA256SUMS" ]; then
         cp "$root/runtime-SHA256SUMS" "$tmp/SHA256SUMS"
