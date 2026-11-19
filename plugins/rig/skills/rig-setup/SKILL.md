@@ -1,9 +1,28 @@
 ---
 name: rig-setup
-description: Prepare the default security rule pack, save a simple scan configuration, and run Rig scans. Application mapping and custom-rule building are paused.
+description: Set up the default security scan or update installed Rig components. Application mapping and custom-rule building are paused.
 ---
 
 # Default scan setup
+
+## Updating Rig
+
+When the user asks to update Rig, use the active standalone CLI from the host's
+terminal: `rig update --all --json`. That request supplies update authorization;
+reuse it. Read the result for standalone, Codex and Claude independently. Preserve
+pins, disabled integrations, host trust and project command approvals. Follow the
+reported reload instructions and return after reporting the update outcome.
+
+If the standalone CLI is unavailable, report that component and use the current
+host's plugin manager after inspecting its Rig marketplace source. Codex uses
+`codex plugin marketplace upgrade rig`. Claude uses
+`claude plugin marketplace update rig` followed by
+`claude plugin update rig@rig --scope user` for its user installation. Preserve
+other sources and scopes and report the owning host command. Codex needs a new
+session; Claude supports `/reload-plugins` or a new session. Installing/updating
+does not approve hooks or tools. Automatic CLI updates remain an explicit opt-in.
+
+## Default scan preparation
 
 Normal setup is default-pack setup only. Do not map the application, model threats,
 trace code flows, delegate area work, build custom rules, start evaluators, or

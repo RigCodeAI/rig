@@ -1,11 +1,13 @@
 #!/bin/sh
 # Thin pre-Rust bootstrap. Product behavior lives in the pinned Rig executable.
 set -eu
-root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+launcher=$0
+case "$(uname -s)" in MINGW*|MSYS*) launcher=$(cygpath -u "$launcher");; esac
+root=$(CDPATH= cd -- "$(dirname -- "$launcher")" && pwd -P)
 RIG_PLUGIN_ROOT=$root
 export RIG_PLUGIN_ROOT
-runtime_version=0.1.26
-source_revision=87aa81ec6fe7c254819b381b4253a4a917e4cc81
+runtime_version=0.1.28
+source_revision=3ce9bc7900dcae3782b77e2e8840c0575fdb134c
 agent_contract=1
 fail() {
     printf 'Rig runtime setup failed: %s\n' "$1" >&2
@@ -23,6 +25,10 @@ if [ "$source_revision" != unreleased ] && [ ! -f "$root/runtime-SHA256SUMS" ]; 
     fail 'missing packaged checksums; reinstall the Rig plugin'
 fi
 case "$(uname -s)/$(uname -m)" in
+    MINGW*/x86_64|MSYS*/x86_64)
+        # Git for Windows is a declared native-host prerequisite, never WSL.
+        exec powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+            -File "$(cygpath -w "$root/rig.ps1")" "$@";;
     Darwin/arm64) target=aarch64-apple-darwin;;
     Linux/aarch64|Linux/arm64) target=aarch64-unknown-linux-gnu;;
     Linux/x86_64) target=x86_64-unknown-linux-gnu;;
@@ -63,7 +69,7 @@ install_runtime() {
     trap 'exit 130' INT
     trap 'exit 143' TERM
     asset=rig-$target
-    base=https://downloads.rig.ai/releases/87aa81ec6fe7c254819b381b4253a4a917e4cc81/44421699555001
+    base=https://downloads.rig.ai/releases/3ce9bc7900dcae3782b77e2e8840c0575fdb134c/44515545811001
     printf 'Rig: downloading pinned runtime %s (%s).\n' "$version" "$target" >&2
     if [ -f "$root/runtime-SHA256SUMS" ]; then
         cp "$root/runtime-SHA256SUMS" "$tmp/SHA256SUMS"
