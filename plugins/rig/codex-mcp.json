@@ -3,7 +3,7 @@
     "rig": {
       "args": [
         "-c",
-        "exec sh \"${CODEX_HOME:-$HOME/.codex}/plugins/cache/rig/rig/0.1.44584616131001/rig.sh\" mcp"
+        "exec sh \"${CODEX_HOME:-$HOME/.codex}/plugins/cache/rig/rig/0.1.44746785231001/rig.sh\" mcp"
       ],
       "command": "sh",
       "env_vars": [

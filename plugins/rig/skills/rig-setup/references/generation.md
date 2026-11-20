@@ -163,6 +163,15 @@ finite ledger and a single-use gap/caller-scope slot, honoring the current workl
 limits up to the existing hard maxima (32 attempts/14400 seconds). Interrupted work
 remains incomplete. Finish rejected/unsupported entries and continue the queue;
 never retry unchanged failed obligations for a better score.
+Admission requires at least 1,050 seconds remaining on the earlier worklist or
+generation deadline. Each evaluation uses up to 1,200 seconds. Of that window,
+360 seconds are reserved for oracle checks and native qualification, and 60 seconds
+of preparation headroom plus 630 seconds of builder time are required at admission.
+The builder receives the remaining first-stage time after preflight. A longer
+preflight that leaves fewer than 630 seconds stops that already-started attempt.
+A new request refused at admission returns budget_exhausted with diagnostic
+reason insufficient_time, consumes zero private slots and leaves existing claims
+and deadlines intact. Retrieve its saved outcome. Qualification may still time out.
 To retire known exposure, use `rig_evaluate` with {"id":"CHECK","exposed":true},
 or `rig setup --evaluate CHECK --exposed`, before revising the candidate.
 

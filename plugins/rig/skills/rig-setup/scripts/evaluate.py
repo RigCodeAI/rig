@@ -10,6 +10,7 @@ from pathlib import Path
 import shutil
 import sys
 import tempfile
+import time
 import tomllib
 
 from native_host import auth_copy, bounded, environment, preflight
@@ -180,7 +181,7 @@ def validate(output, project):
                          if p.is_file() and p.name not in ('freeze.json',)}}
 
 
-def prepare(project, output, baseline, seconds=900, focus=None, inventory=False, saved_obligations=None, denied_paths=(), targets=None, progress=None):
+def prepare(project, output, baseline, seconds=900, focus=None, inventory=False, saved_obligations=None, denied_paths=(), targets=None, progress=None, construction_deadline=None, min_builder=None):
     progress = progress or (lambda stage: None)
     progress('preparation')
     if sys.platform != 'darwin':
@@ -242,7 +243,6 @@ def prepare(project, output, baseline, seconds=900, focus=None, inventory=False,
         shutil.copy2(Path(__file__).parent/script, protocol/script)
     if inventory and saved_obligations:
         prompt += '\nSaved obligation metadata (no rules or test forms): '+json.dumps(saved_obligations)
-    prompt += '\nTotal session budget: '+str(seconds)+' seconds. Write valid artifacts early; do not exhaust the budget on reading.\n'
     prompt += '\nBefore finishing, run the existing protocol validator and fix any invalid construction yourself: '+str(sys.executable)+' -B '+str(protocol/'evaluate.py')+(' --validate-plan' if inventory else ' --validate')+' --project '+str(source)+' --output '+str(output)+'\nThis validates data only and starts no model or scanner.\n'
     if obligation:
         prompt += '\nRevalidate this saved obligation on CURRENT source (not a new unrelated gap). Treat its assumptions as untrusted; establish semantics again. Include regressions even if current source is safe. No previous rule or cases are supplied:\n'+json.dumps(obligation)
@@ -261,6 +261,12 @@ def prepare(project, output, baseline, seconds=900, focus=None, inventory=False,
         # outer Seatbelt profile prevents nested sandbox_apply on macOS. The
         # fresh copy/profile omit author context; same-user read isolation is
         # not claimed. Keep the strict separate oracle sandbox below.
+        if construction_deadline is not None:
+            # Preflight and source staging use the same construction window.
+            seconds = min(seconds, int(construction_deadline - time.time()))
+            if seconds < min_builder:
+                raise WorkerError(failed('timeout'))
+        prompt += '\nTotal session budget: '+str(seconds)+' seconds. Write valid artifacts early; do not exhaust the budget on reading.\n'
         args = [str(host), 'exec',
                 '--ephemeral', '--skip-git-repo-check', '--json',
                 '--add-dir', str(state/'tmp'), '-C', str(output), prompt]

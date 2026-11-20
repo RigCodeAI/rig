@@ -48,7 +48,7 @@ def validate_candidate(job, source, engine, request):
         rules.unlink(missing_ok=True)
 
 
-def evaluate(job, vault, engine, seconds, author_root):
+def evaluate(job, vault, engine, seconds, author_root, construction_deadline=None, min_builder=None):
     checkpoint(job, 'preparation')
     request = json.loads((job / 'request.json').read_text())
     source = job / 'source'
@@ -71,7 +71,8 @@ def evaluate(job, vault, engine, seconds, author_root):
                      focus={'statement': request.get('statement') or request.get('gap') or 'Verify the declared caller operation',
                             'gap': request.get('gap', ''), 'paths': request['paths'],
                             'limitations': request.get('limitations', '')},
-                     progress=lambda stage: checkpoint(job, stage))
+                     progress=lambda stage: checkpoint(job, stage),
+                     construction_deadline=construction_deadline, min_builder=min_builder)
     checkpoint(job, 'case_validation')
     location = Path(frozen['evaluation'])
     targets = {row['target'] for row in json.loads((location / 'private/cohort.json').read_text())['cases']}
@@ -119,7 +120,8 @@ def evaluate(job, vault, engine, seconds, author_root):
 
 if __name__ == '__main__':
     try:
-        evaluate(Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]), int(sys.argv[4]), Path(sys.argv[5]))
+        evaluate(Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]), int(sys.argv[4]), Path(sys.argv[5]),
+                 *(int(value) for value in sys.argv[6:]))
     except BaseException as error:
         failure(Path(sys.argv[1]), error)
         sys.exit(2)  # Only validated checkpoint codes may enter the public response.
