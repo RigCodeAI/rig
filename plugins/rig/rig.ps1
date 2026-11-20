@@ -1,13 +1,13 @@
-# Thin native Windows bootstrap for the host-owned pinned plugin runtime.
+﻿# Thin native Windows bootstrap for the host-owned pinned plugin runtime.
 # The public plugin package supplies the immutable checksum; PATH Rig is unused.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 [Console]::InputEncoding = New-Object Text.UTF8Encoding($false)
 [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
 $OutputEncoding = [Console]::OutputEncoding
-$runtimeVersion = 'unreleased'
-$sourceRevision = 'unreleased'
-$runtimeBase = 'unreleased'
+$runtimeVersion = '0.1.34'
+$sourceRevision = '5d6a68cbc98501fd8b12eb8e6288753f778d6af0'
+$runtimeBase = 'https://downloads.rig.ai/releases/5d6a68cbc98501fd8b12eb8e6288753f778d6af0/44779471117001'
 $pluginArguments = $args
 $env:RIG_PLUGIN_ROOT = $PSScriptRoot
 try {
