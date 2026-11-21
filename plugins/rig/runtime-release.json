@@ -2,13 +2,13 @@
   "bootstrap_sha256": "1dc79860254a2125881e44220f84e098019e3828b24f7fa74e98c3003388c44a",
   "installer_sha256": "63333c6114a92f8993b1a16543154281e2a78d1583bc411bb5b5cfece01c9e2c",
   "origin": "https://downloads.rig.ai",
-  "publication_order": 44913423781,
-  "revision": "a61adffae20c81d16d0517eafd7d3cfb0cce7e56",
+  "publication_order": 44932726140,
+  "revision": "e89dfa1d42f1c77c6a409423fbad5348d0d270ab",
   "schema_version": "rig.cli-release/v2",
-  "sequence": 44915331365001,
-  "sha256_aarch64-apple-darwin": "cad626c6870222de61160af440bad9ecc2da23fdb780621c7c93afc056160e7e",
-  "sha256_aarch64-unknown-linux-gnu": "e22d5a637b891fa9a45e7a5fa28f883e9bee23f36174a7bee039c379fa4f259c",
-  "sha256_x86_64-unknown-linux-gnu": "535ae2e75bb2636b37908a939eca1261420dd4e203a733e22e2b3e0bbda5a6cb",
+  "sequence": 44934776286001,
+  "sha256_aarch64-apple-darwin": "489b7b16c97eaf380c23a49fad488fae785b6d118eb9a5f52fc3eb7822420703",
+  "sha256_aarch64-unknown-linux-gnu": "8635c91cdddc498af2c1784ed4e65ef1c145ad8bf42ce6cc0e94040043a078a6",
+  "sha256_x86_64-unknown-linux-gnu": "c6b1e7db20ec2a9c9889519610b3a3ee472ef607c222afe4119acee01963ecee",
   "update_public_keys": "MIIBigKCAYEAneSDRN+T37686zbFiYSnDzKuG4YDj0rxEp7KLiMwcMobEgfSvgaXpa6al0P89ZySrlfkrchSRlckNbZl6+Lyvwl6mvQIoS9ArXFfwbUnc6VMcqVZPcJgfL1umyo0GJOO0yhrXuY4BBiQvYTeLgZJ07lglf3CX+XWsCkgTkD357PfaLsORCsK93gUwz+Eb48dgPhro4eTK7LF1rnYFyJbi4ODcwFeQxSZdI8sUH9QSa0+qxy1/wr88CJdz7+nbAuXF79+LMYinYtFbWeyupt6P7XfzlwQo65ECvaeddC520r5LIcMBOkudXNzwR2Ig2qnrciU/kO8u07Qxs/T5tDgAsYH6Y4jbo7Vcgq6BlzYosZRUjYzYL8PrhqE/KjmsjLi9EoDcAFEnSzmA83xTZNjJD/qGNI2s3j5kJ6ao3gRcIHd9euq0MVW/Qhz0j7V6TkFN4qdPA+GA36l55RVo6hVYhjyArGl9GY16rhXS8jHfFzNUT971V//eAMtUhCoCNABAgMBAAE=",
-  "version": "0.1.39"
+  "version": "0.1.40"
 }
