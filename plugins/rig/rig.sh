@@ -6,8 +6,8 @@ case "$(uname -s)" in MINGW*|MSYS*) launcher=$(cygpath -u "$launcher");; esac
 root=$(CDPATH= cd -- "$(dirname -- "$launcher")" && pwd -P)
 RIG_PLUGIN_ROOT=$root
 export RIG_PLUGIN_ROOT
-runtime_version=0.1.37
-source_revision=81eb075f93a6e0d078e0412b3bc76b92d1449763
+runtime_version=0.1.38
+source_revision=ffac7549b92e101e37e0672634de45c3eff46f23
 agent_contract=1
 fail() {
     printf 'Rig runtime setup failed: %s\n' "$1" >&2
@@ -69,7 +69,7 @@ install_runtime() {
     trap 'exit 130' INT
     trap 'exit 143' TERM
     asset=rig-$target
-    base=https://downloads.rig.ai/releases/81eb075f93a6e0d078e0412b3bc76b92d1449763/44844917812001
+    base=https://downloads.rig.ai/releases/ffac7549b92e101e37e0672634de45c3eff46f23/44904076812001
     printf 'Rig: downloading pinned runtime %s (%s).\n' "$version" "$target" >&2
     if [ -f "$root/runtime-SHA256SUMS" ]; then
         cp "$root/runtime-SHA256SUMS" "$tmp/SHA256SUMS"
