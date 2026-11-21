@@ -5,9 +5,9 @@ $ErrorActionPreference = 'Stop'
 [Console]::InputEncoding = New-Object Text.UTF8Encoding($false)
 [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
 $OutputEncoding = [Console]::OutputEncoding
-$runtimeVersion = '0.1.38'
-$sourceRevision = 'ffac7549b92e101e37e0672634de45c3eff46f23'
-$runtimeBase = 'https://downloads.rig.ai/releases/ffac7549b92e101e37e0672634de45c3eff46f23/44904076812001'
+$runtimeVersion = '0.1.39'
+$sourceRevision = 'a61adffae20c81d16d0517eafd7d3cfb0cce7e56'
+$runtimeBase = 'https://downloads.rig.ai/releases/a61adffae20c81d16d0517eafd7d3cfb0cce7e56/44915331365001'
 $pluginArguments = $args
 $env:RIG_PLUGIN_ROOT = $PSScriptRoot
 try {
@@ -15,6 +15,7 @@ try {
     if ($pluginVersion -cnotmatch '^\d+\.\d+\.\d+$' -or $runtimeVersion -eq 'unreleased') {
         throw 'Reinstall a published Windows-capable Rig plugin'
     }
+    $env:RIG_PLUGIN_RUNTIME_PIN = $pluginVersion
     if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 'ARM64') {
         throw 'Rig plugin supports Windows x64'
     }

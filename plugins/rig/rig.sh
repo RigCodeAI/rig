@@ -6,8 +6,8 @@ case "$(uname -s)" in MINGW*|MSYS*) launcher=$(cygpath -u "$launcher");; esac
 root=$(CDPATH= cd -- "$(dirname -- "$launcher")" && pwd -P)
 RIG_PLUGIN_ROOT=$root
 export RIG_PLUGIN_ROOT
-runtime_version=0.1.38
-source_revision=ffac7549b92e101e37e0672634de45c3eff46f23
+runtime_version=0.1.39
+source_revision=a61adffae20c81d16d0517eafd7d3cfb0cce7e56
 agent_contract=1
 fail() {
     printf 'Rig runtime setup failed: %s\n' "$1" >&2
@@ -21,6 +21,8 @@ hook_call=0
 if [ "${1:-}" = plugin ] && [ "${2:-}" = hook ]; then hook_call=1; fi
 version=$(cat "$root/runtime-version") || fail 'missing runtime pin; reinstall the Rig plugin'
 case "$version" in ''|*[!0-9.]*|.*) fail 'invalid pinned runtime version';; esac
+RIG_PLUGIN_RUNTIME_PIN=$version
+export RIG_PLUGIN_RUNTIME_PIN
 if [ "$source_revision" != unreleased ] && [ ! -f "$root/runtime-SHA256SUMS" ]; then
     fail 'missing packaged checksums; reinstall the Rig plugin'
 fi
@@ -69,7 +71,7 @@ install_runtime() {
     trap 'exit 130' INT
     trap 'exit 143' TERM
     asset=rig-$target
-    base=https://downloads.rig.ai/releases/ffac7549b92e101e37e0672634de45c3eff46f23/44904076812001
+    base=https://downloads.rig.ai/releases/a61adffae20c81d16d0517eafd7d3cfb0cce7e56/44915331365001
     printf 'Rig: downloading pinned runtime %s (%s).\n' "$version" "$target" >&2
     if [ -f "$root/runtime-SHA256SUMS" ]; then
         cp "$root/runtime-SHA256SUMS" "$tmp/SHA256SUMS"
