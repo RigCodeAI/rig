@@ -5,9 +5,9 @@ $ErrorActionPreference = 'Stop'
 [Console]::InputEncoding = New-Object Text.UTF8Encoding($false)
 [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
 $OutputEncoding = [Console]::OutputEncoding
-$runtimeVersion = '0.1.36'
-$sourceRevision = '66b65db500278454d5eaf4c6961f8403037b029c'
-$runtimeBase = 'https://downloads.rig.ai/releases/66b65db500278454d5eaf4c6961f8403037b029c/44821643488001'
+$runtimeVersion = '0.1.37'
+$sourceRevision = '81eb075f93a6e0d078e0412b3bc76b92d1449763'
+$runtimeBase = 'https://downloads.rig.ai/releases/81eb075f93a6e0d078e0412b3bc76b92d1449763/44844917812001'
 $pluginArguments = $args
 $env:RIG_PLUGIN_ROOT = $PSScriptRoot
 try {
