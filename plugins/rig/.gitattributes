@@ -1,2 +1,3 @@
 * text eol=lf
 *.jws -text
+*.exe -text

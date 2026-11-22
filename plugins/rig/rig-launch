@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+# A Windows host shell may choose this file before applying PATHEXT.
+case "$(uname -s)" in
+    MINGW*|MSYS*) exec "${0}.exe" "$@" ;;
+esac
+exec /bin/sh "${0%/*}/rig.sh" "$@"

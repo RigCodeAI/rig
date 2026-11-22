@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook claude start",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/rig-launch\" plugin hook claude start",
             "timeout": 23160
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook claude prompt",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/rig-launch\" plugin hook claude prompt",
             "timeout": 23160
           }
         ]
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook claude stop",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/rig-launch\" plugin hook claude stop",
             "timeout": 23160
           }
         ]
@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook claude checkpoint",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/rig-launch\" plugin hook claude checkpoint",
             "timeout": 23160
           }
         ]

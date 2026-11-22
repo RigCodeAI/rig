@@ -1,9 +1,8 @@
 {
   "mcpServers": {
     "rig": {
-      "command": "sh",
+      "command": "${CLAUDE_PLUGIN_ROOT}/rig-launch",
       "args": [
-        "${CLAUDE_PLUGIN_ROOT}/rig.sh",
         "mcp"
       ]
     }
