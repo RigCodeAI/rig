@@ -6,6 +6,7 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook codex start",
+            "commandWindows": "& (Join-Path $env:PLUGIN_ROOT 'rig-launch.exe') plugin hook codex start",
             "timeout": 23160
           }
         ]
@@ -17,6 +18,7 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook codex prompt",
+            "commandWindows": "& (Join-Path $env:PLUGIN_ROOT 'rig-launch.exe') plugin hook codex prompt",
             "timeout": 23160
           }
         ]
@@ -28,6 +30,7 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook codex stop",
+            "commandWindows": "& (Join-Path $env:PLUGIN_ROOT 'rig-launch.exe') plugin hook codex stop",
             "timeout": 23160
           }
         ]
@@ -39,6 +42,7 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/rig.sh\" plugin hook codex checkpoint",
+            "commandWindows": "& (Join-Path $env:PLUGIN_ROOT 'rig-launch.exe') plugin hook codex checkpoint",
             "timeout": 23160
           }
         ]
