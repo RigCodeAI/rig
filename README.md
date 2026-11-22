@@ -21,6 +21,17 @@ codex plugin marketplace add RigCodeAI/rig
 codex plugin add rig@rig
 ```
 
+For native Codex on Windows, use the Windows marketplace ref instead:
+
+```powershell
+codex plugin marketplace add RigCodeAI/rig --ref windows-codex
+codex plugin add rig@rig
+```
+
+If you already installed the public Rig marketplace on Windows without that
+ref, run `codex plugin marketplace remove rig` once before the two commands
+above. Later upgrades use the normal marketplace upgrade command.
+
 Review your agent's hook trust requirements, then start a new session in your
 project. Hook or MCP startup downloads and verifies the pinned Rig executable
 when its versioned cache is empty. Installing the plugin alone installs its
