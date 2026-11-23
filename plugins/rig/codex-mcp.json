@@ -5,7 +5,7 @@
         "-NoProfile",
         "-NonInteractive",
         "-Command",
-        "[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); $profileRoot = $env:CODEX_HOME; if (-not $profileRoot) { $profileRoot = Join-Path $env:USERPROFILE \".codex\" }; $launcher = Join-Path $profileRoot \"plugins/cache/rig/rig/0.1.45048785680001/rig-launch.exe\"; & $launcher mcp; exit $LASTEXITCODE"
+        "[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); $profileRoot = $env:CODEX_HOME; if (-not $profileRoot) { $profileRoot = Join-Path $env:USERPROFILE \".codex\" }; $launcher = Join-Path $profileRoot \"plugins/cache/rig/rig/0.1.45231941043001/rig-launch.exe\"; & $launcher mcp; exit $LASTEXITCODE"
       ],
       "command": "powershell.exe",
       "env_vars": [
@@ -15,7 +15,8 @@
         "RIG_OFFLINE",
         "RIG_TRACE_FILE",
         "PATHEXT",
-        "USERPROFILE"
+        "USERPROFILE",
+        "PSModulePath"
       ],
       "startup_timeout_sec": 120,
       "tool_timeout_sec": 11640
