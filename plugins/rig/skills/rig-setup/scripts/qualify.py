@@ -1,7 +1,8 @@
 """Independent single-use qualification; never imports author test claims."""
-import concurrent.futures, hashlib, json, os, shutil, subprocess, sys, tempfile
+import hashlib, json, os, shutil, subprocess, sys, tempfile, time
 from pathlib import Path
 import tomllib
+from worker import WorkerError, native_slot, remaining, run as run_worker
 from evaluation_feedback import EvaluationError, checkpoint
 
 
@@ -60,7 +61,29 @@ def retain(result, directory):
         if sha(target)!=digest:raise RuntimeError('Retained native artifact integrity mismatch')
         retained[kind]={'path':str(target),'sha256':digest,'original_path':path}
     result['retained_evidence']=retained
-def native(rig, engine, rules, source, row, work):
+
+
+class NativeSession:
+    """A suite registers its pinned engine once and shares one grading deadline."""
+    def __init__(self, deadline_unix=None, parent_pid=None):
+        allowance = 300 if deadline_unix is None else deadline_unix - time.time()
+        self.deadline = time.monotonic() + allowance
+        self.registration = None
+        self.home = None
+        self.parent_pid = parent_pid
+
+    def status(self):
+        if time.monotonic() >= self.deadline:
+            return 'timeout'
+        if self.parent_pid is not None and os.getppid() != self.parent_pid:
+            return 'cancelled'
+        return None
+
+
+def native(rig, engine, rules, source, row, work, session=None):
+    session = session or NativeSession()
+    home = session.home or work / (row['id'] + '-state')
+    remaining(session.deadline)
     target=row['target']
     app=work/row['id'];app.mkdir(parents=True)
     dest=app/target;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(row['source'],dest)
@@ -74,19 +97,48 @@ def native(rig, engine, rules, source, row, work):
     c=definition['checks'][0]
     text='schema_version = 1\n[[checks]]\n'+''.join(k+' = '+(str(v).lower() if isinstance(v,bool) else json.dumps(v))+'\n' for k,v in c.items())
     (app/'.rig/checks.toml').write_text(text)
-    subprocess.run(['git','init','-q',str(app)],check=True,capture_output=True)
-    env=dict(os.environ,RIG_HOME=str(app.parent/(row['id']+'-state')),PYTHONDONTWRITEBYTECODE='1',
-             SEMGREP_ENABLE_VERSION_CHECK='0',SEMGREP_SEND_METRICS='off')
-    registration=subprocess.run([rig,'scanner','register',engine,'--name','independent-native','--rules',str(rules),'--application-model','off'],env=env,capture_output=True,text=True,timeout=20)
-    if registration.returncode:raise EvaluationError('scanner_error')
-    p=subprocess.run([rig,'checks','run','--id','qualification','--path',target],cwd=app,env=env,capture_output=True,text=True,timeout=35)
+    subprocess.run(['git','init','-q',str(app)],check=True,capture_output=True,
+                   timeout=min(5, remaining(session.deadline)))
+    # The leased supervisor owns the process group, including nested OpenGrep.
+    env = dict(os.environ, RIG_HOME=str(home), HARNESS_IN_PROCESS_GROUP='1',
+               PYTHONDONTWRITEBYTECODE='1', SEMGREP_ENABLE_VERSION_CHECK='0',
+               SEMGREP_SEND_METRICS='off')
+    with native_slot(session.deadline, session.status) as (slot, waited):
+        def invoke(args, directory, limit):
+            result = run_worker([rig, *args], app, env, directory,
+                                min(limit, remaining(session.deadline)), rig=rig, slot=slot,
+                                observe=session.status)
+            if result['cleanup_error'] or result['status'] not in ('completed', 'worker_failed'):
+                raise WorkerError(result)
+            remaining(session.deadline)
+            return result
+
+        registration_seconds = 0
+        if session.registration is None:
+            home.mkdir(mode=0o700, parents=True, exist_ok=True)
+            digest = sha(engine)
+            env['XDG_CACHE_HOME'] = str(home / 'native-runtime' / digest)
+            result = invoke(['scanner', 'register', engine, '--name', 'independent-native',
+                             '--rules', str(rules), '--application-model', 'off'],
+                            home / 'registration', 20)
+            if result['exit_code'] != 0:
+                raise EvaluationError('scanner_error')
+            registration_seconds = result['seconds']
+            session.registration = digest
+        env['RIG_QUALIFICATION_ENGINE_SHA256'] = session.registration
+        output = work / '.rig-evaluator' / 'captures' / row['id']
+        result = invoke(['checks', 'run', '--id', 'qualification', '--path', target], output, 35)
+    stdout = (output / 'stdout').read_text()
+    stderr = (output / 'stderr').read_text()
+    code = result['exit_code']
     try:
-        receipt=json.loads(p.stdout)
+        receipt=json.loads(stdout)
         findings=receipt.get('findings',[])
-        complete=bool(p.returncode in [0,1] and receipt.get('executed') is True and receipt.get('freshness')=='current' and receipt.get('execution_status')=='completed' and receipt.get('logs_truncated') is False and receipt.get('scanned_files',0)>0 and receipt.get('state') in ['satisfied','violation'] and not receipt.get('diagnostics') and receipt.get('engine_version'))
+        complete=bool(code in [0,1] and receipt.get('executed') is True and receipt.get('freshness')=='current' and receipt.get('execution_status')=='completed' and receipt.get('logs_truncated') is False and receipt.get('scanned_files',0)>0 and receipt.get('state') in ['satisfied','violation'] and not receipt.get('diagnostics') and receipt.get('engine_version'))
         hit=any(f['path'].endswith(target) and f['line'] in credit_lines(row) for f in findings)
     except (ValueError,KeyError,TypeError):receipt={};findings=[];complete=False;hit=False
-    return {'complete':complete,'hit':hit,'findings':findings,'exit':p.returncode,'stdout':p.stdout,'stderr':p.stderr,'receipt':receipt,
+    return {'complete':complete,'hit':hit,'findings':findings,'exit':code,'stdout':stdout,'stderr':stderr,'receipt':receipt,
+            'timing_seconds':{'queue':waited,'registration':registration_seconds,'checks_run':result['seconds']},
             'error_kind':None if complete else scan_error(receipt)}
 
 def candidate_case(row, base, revised, isolated, candidate):
@@ -127,7 +179,7 @@ def adopt_qualified(invoke,ident):
     p=invoke(['checks','policy-review','--id',ident,'--mode','advisory'])
     return invoke(['checks','activate','--id',ident,'--mode','advisory','--owner','Rig setup authorization','--digest',p['policy_digest']])
 
-def existing(m):
+def existing(m, session):
     """Test unchanged existing protection before writing any application rule."""
     root=Path.cwd();out=Path(m['private']);out.mkdir(exist_ok=True)
     config=tomllib.loads((root/'.rig/checks.toml').read_text())
@@ -145,11 +197,12 @@ def existing(m):
     spent.write_text(json.dumps(bound))
     cohort=json.loads(Path(m['cohort']).read_text());cases=[];raw=[]
     with tempfile.TemporaryDirectory(prefix='rig-existing-native-') as name:
+        session.home = Path(name) / '.rig-evaluator' / 'state'
         for row in cohort['cases']:
             if sha(row['source'])!=row['sha256']:raise RuntimeError('Existing case changed')
             credit_lines(row)
             if not any(__import__('fnmatch').fnmatchcase(row['target'],p) or p=='**' for p in baseline['paths']):raise RuntimeError('Existing scanner scope does not cover this target')
-            base=native(m['rig'],m['engine'],rules,root,row,Path(name))
+            base=native(m['rig'],m['engine'],rules,root,row,Path(name),session)
             if base['complete']:retain(base,out/'native-evidence'/row['id'])
             cases.append({'id':row['id'],'expected':row['expected'],'error':not base['complete'],
                           'caught':base['hit'] if row['expected']=='vulnerable' else None,
@@ -160,11 +213,13 @@ def existing(m):
            'native_rig':True,'independent':True,'rules_sha256':sha(rules),'cases':cases,
            'targets':sorted({c['target'] for c in cohort['cases']}),'cohort_sha256':sha(m['cohort']),
            'independence':'Separate source-only runtime cases; finite tested operation scope, not category coverage'}
+    remaining(session.deadline)
     final.write_text(json.dumps(value,indent=2));return value
 
-def run(manifest):
+def run(manifest, parent_pid=None):
     m=json.loads(manifest.read_text())
-    if m.get('purpose')=='existing':return existing(m)
+    session = NativeSession(m.get('deadline_unix'), parent_pid)
+    if m.get('purpose')=='existing':return existing(m, session)
     root=Path.cwd();out=Path(m['private']);out.mkdir(exist_ok=True)
     rules=root/m.get('rules_path',f".rig/corrections/{m['generated_id']}/rule.json")
     candidate_sha=sha(rules)
@@ -175,7 +230,6 @@ def run(manifest):
     if purpose=='development':
         limit=m.get('max_development_runs')
         if limit is not None and len(list(out.glob('run-*')))>=limit:raise RuntimeError('Development attempt budget exhausted; freeze or leave inactive and continue')
-        import time
         out=out/('run-'+str(time.time_ns()));out.mkdir()
     else:
         prerequisite=m.get('development_report')
@@ -230,30 +284,29 @@ def run(manifest):
     cases=[];raws=[]
     with tempfile.TemporaryDirectory(prefix='rig-independent-native-') as name:
         work=Path(name)
-        def one(row):
-            base=native(m['rig'],m['engine'],baseline_file,root,row,work/'baseline')
-            revised=native(m['rig'],m['engine'],combined,root,row,work/'candidate')
-            isolated=native(m['rig'],m['engine'],rules,root,row,work/'candidate-only')
+        session.home = work / '.rig-evaluator' / 'state'
+        for row in cohort['cases']:
+            base=native(m['rig'],m['engine'],baseline_file,root,row,work/'baseline',session)
+            revised=native(m['rig'],m['engine'],combined,root,row,work/'candidate',session)
+            isolated=native(m['rig'],m['engine'],rules,root,row,work/'candidate-only',session)
             if base['complete']:retain(base,out/'native-evidence'/row['id']/'baseline')
             if revised['complete']:retain(revised,out/'native-evidence'/row['id']/'candidate')
             if isolated['complete']:retain(isolated,out/'native-evidence'/row['id']/'candidate-only')
-            return row,base,revised,isolated
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-            for row,base,revised,isolated in pool.map(one,cohort['cases']):
-                cases.append(candidate_case(row,base,revised,isolated,candidate))
-                raws.append({'case':row,'baseline':base,'candidate':revised,'candidate_only':isolated})
-                (out/'raw-results.json').write_text(json.dumps(raws,indent=2))
-                if any(not scan['complete'] for scan in (base,revised,isolated)):
-                    reason=next((scan.get('error_kind') or 'incomplete_scan' for scan in (isolated,revised,base) if not scan['complete']))
-                    checkpoint(m.get('diagnostic_job'),'native_scan',reason)
+            cases.append(candidate_case(row,base,revised,isolated,candidate))
+            raws.append({'case':row,'baseline':base,'candidate':revised,'candidate_only':isolated})
+            (out/'raw-results.json').write_text(json.dumps(raws,indent=2))
+            if any(not scan['complete'] for scan in (base,revised,isolated)):
+                reason=next((scan.get('error_kind') or 'incomplete_scan' for scan in (isolated,revised,base) if not scan['complete']))
+                checkpoint(m.get('diagnostic_job'),'native_scan',reason)
     value={'schema_version':1,'kind':'app_rule_qualification','complete':len(cases)==len(cohort['cases']) and not any(c['error'] for c in cases),
         'native_rig':True,'independent':purpose=='qualification','rules_semantic_sha256':semantic,'rules_sha256':candidate_sha,'baseline_check':baseline['id'],'baseline_rules_sha256':sha(baseline_file),
         'baseline_missed':sum(c['baseline_missed'] for c in cases),'cases':cases,'targets':sorted({c['target'] for c in cohort['cases']}),
         'cohort_sha256':sha(m['cohort']),'independence':'Separately prepared runtime-effect cases withheld from author; finite automated evidence, not semantic infallibility or hostile containment.'}
+    remaining(session.deadline)
     (out/'qualification-proof.json').write_text(json.dumps(value,indent=2))
     if purpose=='development':(base_out/'latest.json').write_text(json.dumps(value,indent=2))
     return value
 if __name__=='__main__':
-    try:print(json.dumps(run(Path(sys.argv[1]))))
+    try:print(json.dumps(run(Path(sys.argv[1]), parent_pid=os.getppid())))
     except Exception as e:
         print(json.dumps({'schema_version':1,'kind':'app_rule_qualification','complete':False,'error':str(e)}));sys.exit(1)

@@ -101,7 +101,8 @@ The operation retains passed, rejected, failed, cancelled, incomplete, contamina
 budget_exhausted, with input identities and a fixed safe summary. New results add a
 closed `diagnostic`: `schema_version`, `stage`, `reason`, `cleanup_error`, `owner`,
 `message`, `missing_evidence`, `next_action`, and `retry_same_request:false`.
-An identified authored-pattern error also supplies a bounded `candidate_location`
+Windows runs candidate rule validation before the macOS-only construction step,
+without acquiring the POSIX scheduler lock. An identified authored-pattern error also supplies a bounded `candidate_location`
 with rule index, field and JSON pointer, against the outcome's `candidate_rule_path`.
 Known construction output limits, permission denial, timeout, authored-rule errors,
 scanner/parser failures, missing proof and finite grading failures stay distinct.
@@ -172,6 +173,17 @@ preflight that leaves fewer than 630 seconds stops that already-started attempt.
 A new request refused at admission returns budget_exhausted with diagnostic
 reason insufficient_time, consumes zero private slots and leaves existing claims
 and deadlines intact. Retrieve its saved outcome. Qualification may still time out.
+Native rule validation and grading share one active scanner slot per local OS
+user across evaluation processes. Queue time, engine registration and execution
+consume the same deadline. A grading case runs the baseline, the combined pack
+and the candidate alone on separate copies of the caller. Each scan has a
+20-second execution limit. Each suite registers its pinned engine once and
+reuses the extracted executable in its private temporary state. Every case
+still runs a fresh scan and retains digest-checked raw and SARIF evidence.
+Private receipts record queue, registration and check durations. Expiry or
+cancellation stops owned work and leaves the rule inactive. Ordinary standalone
+fixture commands use Rig's five-minute command budget.
+
 To retire known exposure, use `rig_evaluate` with {"id":"CHECK","exposed":true},
 or `rig setup --evaluate CHECK --exposed`, before revising the candidate.
 

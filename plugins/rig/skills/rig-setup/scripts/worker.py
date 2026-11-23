@@ -3,11 +3,13 @@
 No process enumeration, permission elevation, authentication fallback or retry.
 Only fixed diagnostics leave this transport; captured worker bytes stay private.
 """
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
 import shutil
 import signal
+import stat
 import subprocess
 import tempfile
 import time
@@ -32,8 +34,49 @@ def failed(status, cleanup=False):
             'Worker did not complete; no qualification. If execution permission is required, explain it in the calling conversation before any caller-approved retry.'}
 
 
+def remaining(deadline):
+    seconds = deadline - time.monotonic()
+    if seconds <= 0:
+        raise WorkerError(failed('timeout'))
+    return seconds
+
+
+@contextmanager
+def native_slot(deadline, observe=None):
+    """One native evaluator lane per POSIX user, across isolated homes and jobs."""
+    if os.name != 'posix':
+        raise WorkerError(failed('startup_failed'))
+    import fcntl
+    # A persistent directory inode avoids unlink/recreate races. It contains no
+    # project data. TMPDIR and HOME can both be private to a single evaluation.
+    uid = os.geteuid()
+    path = Path('/tmp') / f'rig-native-qualification-{uid}'
+    path.mkdir(mode=0o700, exist_ok=True)
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        info = os.fstat(fd)
+        if info.st_uid != uid or stat.S_IMODE(info.st_mode) != 0o700:
+            raise PermissionError('Native scheduler directory unavailable')
+        started = time.monotonic()
+        while True:
+            remaining(deadline)
+            reason = observe() if observe else None
+            if reason:
+                raise WorkerError(failed(reason))
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                time.sleep(min(.05, remaining(deadline)))
+        yield fd, time.monotonic() - started
+    finally:
+        # The supervisor inherits a reference. If the coordinator dies, its
+        # lease closes and the slot remains held until owned work is cleaned.
+        os.close(fd)
+
+
 class Worker:
-    def __init__(self, argv, cwd, env, directory, seconds, forward_stdin=False, rig=None):
+    def __init__(self, argv, cwd, env, directory, seconds, forward_stdin=False, rig=None, slot=None):
         self.directory = Path(directory)
         if not 0 < seconds <= 14_400:
             raise WorkerError(failed('invalid_limits'))
@@ -59,7 +102,8 @@ class Worker:
         try:
             self.p = subprocess.Popen([str(executable), '__eval_worker', str(request)],
                 env=env, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL, start_new_session=True)
+                stderr=subprocess.DEVNULL, start_new_session=True,
+                pass_fds=() if slot is None else (slot,))
         except PermissionError:
             raise WorkerError(failed('permission_required')) from None
         except OSError:
@@ -111,8 +155,8 @@ class Worker:
         return self.poll() or self.outcome
 
 
-def run(argv, cwd, env, directory, seconds, cancel=None, rig=None, observe=None):
-    worker = Worker(argv, cwd, env, directory, seconds, rig=rig)
+def run(argv, cwd, env, directory, seconds, cancel=None, rig=None, observe=None, slot=None):
+    worker = Worker(argv, cwd, env, directory, seconds, rig=rig, slot=slot)
     primary = None
     try:
         while worker.poll() is None:
