@@ -3,28 +3,39 @@
 The CLI owns request reservation and final qualification policy. Hidden artifacts and
 process output stay out of ordinary check receipts. Same-user files are readable.
 """
+from contextlib import nullcontext
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
+import time
 
 from evaluate import prepare
 from qualify import run, sha
 from evaluation_feedback import EvaluationError, checkpoint, failure
-from worker import WorkerError, run as run_worker
+from worker import WorkerError, native_slot, remaining, run as run_worker
 
 
-def validate_candidate(job, source, engine, request):
+def validate_candidate(job, source, engine, request, construction_deadline=None):
     """Check authored syntax on public source, outside the fresh context's inputs."""
     rules = job / 'validation-rule.json'
     rules.write_text(request['candidate'])
     checkpoint(job, 'rule_validation')
     env = dict(os.environ, SEMGREP_ENABLE_VERSION_CHECK='0', SEMGREP_SEND_METRICS='off')
     try:
-        result = run_worker([str(engine), 'scan', '--config', str(rules), '--strict',
-                             '--json', '--disable-version-check', request['paths'][0]],
-                            source, env, job / 'rule-validation', 30)
+        deadline = time.monotonic() + (30 if construction_deadline is None else construction_deadline - time.time())
+        # Windows validates candidates before the macOS-only construction step.
+        scheduler = nullcontext((None, 0)) if os.name == 'nt' else native_slot(deadline)
+        with tempfile.TemporaryDirectory(prefix='rig-validation-cache-') as cache, scheduler as (slot, _):
+            env['XDG_CACHE_HOME'] = cache
+            result = run_worker([str(engine), 'scan', '--config', str(rules), '--strict',
+                                 '--json', '--disable-version-check', request['paths'][0]],
+                                source, env, job / 'rule-validation', min(30, remaining(deadline)), slot=slot,
+                                observe=lambda: 'timeout' if time.monotonic() >= deadline else None)
+        if result['cleanup_error'] or result['status'] not in ('completed', 'worker_failed'):
+            raise WorkerError(result)
         try:
             raw = json.loads((job / 'rule-validation/stdout').read_text())
         except (OSError, ValueError):
@@ -48,7 +59,7 @@ def validate_candidate(job, source, engine, request):
         rules.unlink(missing_ok=True)
 
 
-def evaluate(job, vault, engine, seconds, author_root, construction_deadline=None, min_builder=None):
+def evaluate(job, vault, engine, seconds, author_root, construction_deadline=None, min_builder=None, deadline_unix=None):
     checkpoint(job, 'preparation')
     request = json.loads((job / 'request.json').read_text())
     source = job / 'source'
@@ -63,7 +74,7 @@ def evaluate(job, vault, engine, seconds, author_root, construction_deadline=Non
         target.write_bytes(bytes.fromhex(encoded))
     baseline = job / 'baseline.yaml'
     baseline.write_text(request['baseline'])
-    validate_candidate(job, source, engine, request)
+    validate_candidate(job, source, engine, request, construction_deadline)
     # Only source and baseline are supplied to the fresh context. Same-user reads
     # are not isolated. The separate oracle denies candidate/history paths.
     frozen = prepare(source, job / 'construction', baseline, seconds,
@@ -103,7 +114,8 @@ def evaluate(job, vault, engine, seconds, author_root, construction_deadline=Non
                 'cohort': str(location / 'private/cohort.json'),
                 'rules_path': '.rig/candidate.json', 'generated_id': 'candidate',
                 'baseline_id': 'opengrep-default', 'frozen_files': bindings,
-                'application_inputs': frozen['source_inputs'], 'diagnostic_job': str(job)}
+                'application_inputs': frozen['source_inputs'], 'diagnostic_job': str(job),
+                'deadline_unix': deadline_unix}
     path = job / 'manifest.json'
     path.write_text(json.dumps(manifest))
     os.chdir(source)
