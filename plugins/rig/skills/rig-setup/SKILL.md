@@ -57,11 +57,16 @@ still apply. Never change permissions or approval storage to make setup work.
    TOKEN]. This freezes the prepared rules locally and preserves existing checks.
    No repository test/lint import, required-policy activation or new hook connection
    is part of normal setup.
-4. Run the saved security check through `rig_manage` command `checks` with
-   arguments ["run", "--id", "ID", "--whole-project"]. Scanners need no Rig execution
-   approval or per-host automatic grant. Report actual findings, unsupported files,
-   errors and incomplete scans. Do not repair application code merely to complete
-   setup; continue normal authorized finding handling through the Rig skill.
+4. Choose one existing, representative source file no larger than 64 KiB.
+   Avoid generated files, tests and `.rig/` inputs. Run the saved check through
+   `rig_manage` command `checks` with arguments ["run", "--id", "ID", "--path", "FILE"].
+   This real scan validates scanner launch, output parsing and saved evidence for
+   that file only. Report the exact file, findings, diagnostics and coverage limits.
+   If no suitable file exists, report validation as unavailable without scanning
+   the whole project. Do not repair pre-existing findings to complete setup.
+   A whole-project inventory requires a separate explicit request.
+   A model-backed scanner cannot run on one file. Report that boundary and use
+   `--whole-project` only after an explicit whole-project request.
 5. If --lifecycle reports initial_setup from an earlier advanced attempt, finish
    that pause under setup/report authorization. Reuse the existing assessment path
    returned by --report, preserving its gaps and spent attempts. If none exists,
@@ -73,14 +78,15 @@ still apply. Never change permissions or approval storage to make setup work.
    save with the same arguments plus --apply --digest TOKEN through rig_manage.
    Then call rig_manage setup ["--complete"] and confirm initial_setup=false.
    Saving a report alone does not end the pause. Do not restart advanced work.
-6. Call `rig_finish` and give a short result: configuration saved/reused, scan
-   actually completed or blocked, findings and gaps. Setup ends here. Use rig_context,
+6. Call `rig_finish` with the same file path when validation ran. Give a short
+   result: configuration saved/reused, validation completed or blocked, findings
+   and gaps. Setup ends here. Use rig_context,
    rig_check and rig_finish during subsequent code changes, preserving hook-supplied
    task_handle. Installed trusted hooks still provide changed-code checkpoints;
    do not request scanner execution grants or install duplicate hooks. Missing
    host trust/delivery is a stated limitation, not a reason to start custom authoring.
 
-A prepared pack, saved configuration and completed scan are separate outcomes.
+A prepared pack, saved configuration and scoped validation are separate outcomes.
 Default rules are background protection, not project-specific or complete security
 coverage. Keep prior inactive candidates and reports as history; do not retry them
 as part of default setup or routine coding.

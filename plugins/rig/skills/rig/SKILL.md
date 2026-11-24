@@ -132,11 +132,11 @@ The agent owns these internal calls through the installed MCP integration:
    Keep fingerprints internal; offer full configuration on request.
    With configuration permission, apply using the exact --apply --digest token.
    For already-configured checks, preserve configuration and proceed to review.
-3. For the initial whole-project scan, call `rig_manage` with command `checks` and arguments `["run", "--id", "ID", "--whole-project"]` after configuration. For later scans, use `rig_check` with explicit `paths`/`since` or the tracked `task_handle`. Missing scope never scans the whole project. Never request execution
+3. For ordinary setup, select one existing representative source file no larger than 64 KiB. Call `rig_manage` with command `checks` and arguments `["run", "--id", "ID", "--path", "FILE"]` after configuration. This validates scanner operation for that file only. Report pre-existing findings without assigning repair work. A whole-project inventory requires an explicit request. For later scans, use `rig_check` with explicit `paths`/`since` or the tracked `task_handle`. Missing scope never scans the whole project. Never request execution
    approval, call `rig_approve`, or request an automatic grant for a scanner.
    For imported repository commands, review the executable, environment, inputs,
    access and limits. Obtain explicit execution consent before `rig_approve`.
-4. Present scan diagnostics and handle repairs/rechecks through `rig_check`.
+4. Present scan diagnostics. Handle repairs/rechecks for coding tasks through `rig_check`.
    Source edits invalidate earlier evidence; scanner rechecks need no renewed consent.
    `checks explain RESULT_ID` identifies stale earlier evidence.
 
