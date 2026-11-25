@@ -268,19 +268,10 @@ def run(manifest, parent_pid=None):
         with spent.open('x') as f:json.dump({'rules_sha256':candidate_sha,'cohort_sha256':sha(m['cohort']),'context':current_context,'started':True},f)
     shutil.copy2(rules,out/'frozen-candidate.json')
     combined=out/'combined.json'
+    merge=subprocess.run([m['rig'],'__merge_rules',str(baseline_file),str(rules),str(combined)],
+                         capture_output=True,text=True,timeout=min(5,remaining(session.deadline)))
+    if merge.returncode != 0:raise RuntimeError('Combined rule pack invalid; inspect baseline and candidate rule lists')
     candidate=json.loads(rules.read_text())
-    baseline_text=baseline_file.read_text()
-    try:
-        original=json.loads("\n".join(line for line in baseline_text.splitlines() if not line.lstrip().startswith("#")))
-        original_ids=[r['id'] for r in original['rules']]
-        combined.write_text(json.dumps({'rules':original['rules']+candidate['rules']}))
-    except ValueError:
-        import re
-        assert baseline_text.startswith('rules:'),'Independent checker requires a local rules-only pack'
-        original_ids=re.findall(r'^\s*-?\s*id:\s*(\S+)',baseline_text,re.M)
-        combined.write_text(baseline_text.rstrip()+'\n'+'\n'.join('- '+json.dumps(r) for r in candidate['rules'])+'\n')
-    ids=original_ids+[r['id'] for r in candidate['rules']]
-    if len(ids)!=len(set(ids)):raise RuntimeError('Candidate duplicates an existing protective rule')
     cases=[];raws=[]
     with tempfile.TemporaryDirectory(prefix='rig-independent-native-') as name:
         work=Path(name)

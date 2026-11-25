@@ -88,6 +88,11 @@ supplied. The controller independently reruns the network-denied runtime oracle
 and freezes all case/label bytes before
 materializing candidate bytes for grading. qualify.py runs actual Rig on unchanged
 baseline, candidate-only and combined packs with the same supported engine settings.
+Before the combined scan, Rig parses the baseline YAML and candidate JSON as rule
+lists, rejects missing or duplicate rule IDs, and writes one combined JSON pack.
+The baseline file remains unchanged; malformed rule lists cannot reach a scan.
+Each input rule pack remains within 4 MiB. The derived combined pack has a
+separate 32 MiB ceiling to allow two accepted inputs and YAML serialization.
 Unsafe credit requires the candidate-only and combined scans to detect the intended
 operation. All three must complete; combined safe alarms remain disqualifying.
 This prevents a baseline rule with a similar ID from earning the candidate credit.
